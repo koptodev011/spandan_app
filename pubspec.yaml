@@ -44,12 +44,28 @@ dependencies:
   # State Management (if needed later)
   provider: ^6.1.1
   
-  # HTTP Client
+  # HTTP Client and Storage
   http: ^1.1.0
-  
-  # Local Storage
+  flutter_secure_storage: ^9.0.0
   shared_preferences: ^2.2.2
-  form_validator: 2.1.1
+  
+  # Audio Recording
+  record: ^5.0.4
+  permission_handler: ^11.3.0
+  path_provider: ^2.1.1
+  just_audio: ^0.9.36
+  audio_session: ^0.1.18
+  
+  # Calendar and Date/Time
+  table_calendar: ^3.0.9
+  intl: ^0.19.0
+  
+  # Form Validation
+  form_validator: ^2.1.1
+  image_picker: ^1.1.2
+  
+  # Icons
+  font_awesome_flutter: ^10.6.0
 
 dev_dependencies:
   flutter_test:
