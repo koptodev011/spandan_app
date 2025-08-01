@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'patients_screen.dart';
+import '../services/auth_service.dart';
 
 // Colors
 const Color primaryColor = Color(0xFF2196F3);
@@ -39,8 +40,13 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
       
       try {
+        // For web, use localhost, for Android use 10.0.2.2
+        final baseUrl = const bool.fromEnvironment('dart.library.js_util')
+            ? 'http://localhost:8000'
+            : 'http://10.0.2.2:8000';
+            
         final response = await http.post(
-          Uri.parse('http://localhost:8000/api/login'),
+          Uri.parse('$baseUrl/api/login'),
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -54,11 +60,27 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           setState(() => _isLoading = false);
           
+          print('Login response status: ${response.statusCode}');
+          print('Response body: ${response.body}');
+          
           if (response.statusCode == 200) {
             // Successfully logged in
             final responseData = jsonDecode(response.body);
-            // TODO: Save the token if needed
-            // await saveToken(responseData['token']);
+            print('Decoded response: $responseData'); // Debug print
+            
+            // Check the structure of the response - token is in responseData['authorization']['token']
+            final token = responseData['authorization']?['token'];
+            print('Extracted token: $token'); // Debug print
+            
+            if (token != null) {
+              print('Saving token: $token');
+              await AuthService.saveToken(token);
+              final savedToken = await AuthService.getToken();
+              print('Token saved successfully: ${savedToken != null && savedToken.isNotEmpty}');
+              print('Actual saved token: $savedToken');
+            } else {
+              print('No token found in response. Available keys: ${responseData.keys}');
+            }
             
             // Navigate to Patients screen and remove all previous routes
             if (mounted) {
@@ -133,18 +155,17 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5FAFE),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Card(
-              elevation: 0,
-              color: const Color(0xFFF5FAFE),
+              elevation: 2,
+              color: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: borderColor, width: 1.5),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),

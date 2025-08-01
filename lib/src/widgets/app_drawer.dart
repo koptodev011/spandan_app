@@ -1,15 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class Sidebar extends StatelessWidget {
-  final int selectedIndex;
-  final Function(int) onItemTapped;
-
-  const Sidebar({
-    super.key,
-    required this.selectedIndex,
-    required this.onItemTapped,
-  });
+class AppDrawer extends StatelessWidget {
+  const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +17,7 @@ class Sidebar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Spandan',
+                  'Aura Wellbeing',
                   style: GoogleFonts.inter(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -53,37 +46,38 @@ class Sidebar extends StatelessWidget {
                   context: context,
                   icon: Icons.people_outline,
                   label: "Today's Sessions",
-                  isSelected: selectedIndex == 0,
-                  onTap: () => onItemTapped(0),
+                  isSelected: false,
+                  onTap: () {},
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.calendar_today_outlined,
                   label: "Appointments",
-                  isSelected: selectedIndex == 1,
-                  onTap: () => onItemTapped(1),
+                  isSelected: false,
+                  onTap: () {},
+                ),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: "Transactions",
+                  isSelected: true,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/transactions');
+                  },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.history_outlined,
                   label: "Completed Sessions",
-                  isSelected: selectedIndex == 2,
-                  onTap: () => onItemTapped(2),
+                  isSelected: false,
+                  onTap: () {},
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.bar_chart_outlined,
                   label: "Reports",
-                  isSelected: selectedIndex == 3,
-                  onTap: () => onItemTapped(3),
-                ),
-                const SizedBox(height: 8),
-                _buildMenuItem(
-                  context: context,
-                  icon: Icons.account_balance_wallet_outlined,
-                  label: "Transactions",
-                  isSelected: selectedIndex == 4,
-                  onTap: () => onItemTapped(4),
+                  isSelected: false,
+                  onTap: () {},
                 ),
               ],
             ),
