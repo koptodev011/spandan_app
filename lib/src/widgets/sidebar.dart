@@ -75,16 +75,23 @@ class Sidebar extends StatelessWidget {
                   icon: Icons.bar_chart_outlined,
                   label: "Reports",
                   isSelected: selectedIndex == 3,
-                  onTap: () => onItemTapped(3),
+                  onTap: () {
+                    onItemTapped(3);
+                    Navigator.pushNamed(context, '/reports');
+                  },
                 ),
-                const SizedBox(height: 8),
                 _buildMenuItem(
                   context: context,
-                  icon: Icons.account_balance_wallet_outlined,
+                  icon: Icons.receipt_long_outlined,
                   label: "Transactions",
                   isSelected: selectedIndex == 4,
-                  onTap: () => onItemTapped(4),
+                  onTap: () {
+                    onItemTapped(4);
+                    Navigator.pushNamed(context, '/transactions');
+                  },
                 ),
+                const SizedBox(height: 8),
+
               ],
             ),
           ),
@@ -120,7 +127,7 @@ class Sidebar extends StatelessWidget {
       title: Text(
         label,
         style: GoogleFonts.inter(
-          color: isSelected ? const Color(0xFF1E40AF) : const Color(0xFF4B5563),
+          color: Colors.black, // Changed from blue to black
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),

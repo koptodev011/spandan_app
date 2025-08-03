@@ -78,11 +78,11 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
       children: [
         TextButton.icon(
           onPressed: widget.onBack,
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A237E)),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           label: Text(
             'Back to Patients',
             style: GoogleFonts.inter(
-              color: const Color(0xFF1A237E),
+              color: Colors.black,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -124,14 +124,14 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.person_outline, size: 24, color: Color(0xFF5C6BC0)),
+                const Icon(Icons.person_outline, size: 24, color: Color(0xFF58C0F4)),
                 const SizedBox(width: 8),
                 Text(
                   'Patient Information',
                   style: GoogleFonts.inter(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A237E),
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -149,7 +149,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                   child: const Icon(
                     Icons.person,
                     size: 32,
-                    color: Color(0xFF5C6BC0),
+                    color: Color(0xFF58C0F4),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -161,7 +161,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1A237E),
+                        color: Colors.black,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -169,7 +169,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                       '${widget.patient['age'] ?? ''} years • ${widget.patient['gender'] ?? ''}',
                       style: GoogleFonts.inter(
                         fontSize: 16,
-                        color: const Color(0xFF5C6BC0),
+                        color: Colors.black,
                       ),
                     ),
                   ],
@@ -222,14 +222,14 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: const Color(0xFF5C6BC0)),
+        Icon(icon, size: 20, color: const Color(0xFF58C0F4)),
         const SizedBox(width: 8),
         Text(
           title,
           style: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF1A237E),
+            color: Colors.black,
           ),
         ),
       ],
@@ -280,7 +280,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
           color: isSelected ? const Color(0xFFE8EAF6) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? const Color(0xFF5C6BC0) : const Color(0xFFE0E0E0),
+            color: isSelected ? const Color(0xFF58C0F4) : const Color(0xFFE0E0E0),
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -292,19 +292,19 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF5C6BC0) : const Color(0xFF9E9E9E),
+    color: isSelected ? const Color(0xFF58C0F4) : const Color(0xFF9E9E9E),
                   width: 2,
                 ),
               ),
               child: isSelected
-                  ? const Icon(Icons.circle, size: 12, color: Color(0xFF5C6BC0))
+                  ? const Icon(Icons.circle, size: 12, color: Color(0xFF58C0F4))
                   : null,
             ),
             const SizedBox(width: 16),
             Icon(
               icon,
               size: 32,
-              color: isSelected ? const Color(0xFF5C6BC0) : const Color(0xFF9E9E9E),
+              color: isSelected ? const Color(0xFF58C0F4) : const Color(0xFF9E9E9E),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -316,7 +316,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A237E),
+                      color: Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -324,7 +324,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                     description,
                     style: GoogleFonts.inter(
                       fontSize: 14,
-                      color: const Color(0xFF5C6BC0),
+                      color: Colors.black,
                     ),
                   ),
                 ],
@@ -359,7 +359,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF5C6BC0), width: 1.5),
+          borderSide: const BorderSide(color: Colors.black, width: 1.5),
         ),
       ),
       items: durationOptions.map<DropdownMenuItem<String>>((option) {
@@ -369,7 +369,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             option['label'] as String,
             style: GoogleFonts.inter(
               fontSize: 16,
-              color: const Color(0xFF1A237E),
+              color: Colors.black,
             ),
           ),
         );
@@ -404,7 +404,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Color(0xFF5C6BC0), width: 1.5),
+          borderSide: const BorderSide(color: Colors.black, width: 1.5),
         ),
       ),
       items: _purposeOptions.map<DropdownMenuItem<String>>((option) {
@@ -414,7 +414,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             option['label'] as String,
             style: GoogleFonts.inter(
               fontSize: 16,
-              color: const Color(0xFF1A237E),
+              color: Colors.black,
             ),
           ),
         );
@@ -517,7 +517,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A237E),
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -530,14 +530,14 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A237E),
+                    color: Colors.black,
                   ),
                 ),
                 Text(
                   dateFormat.format(now),
                   style: GoogleFonts.inter(
                     fontSize: 14,
-                    color: const Color(0xFF5C6BC0),
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -680,7 +680,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             onPressed: _isLoading ? null : widget.onBack,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Color(0xFF5C6BC0)),
+              side: const BorderSide(color: Color(0xFF58C0F4)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -688,7 +688,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             child: Text(
               'Cancel',
               style: GoogleFonts.inter(
-                color: const Color(0xFF5C6BC0),
+                color: Color(0xFF58C0F4),
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -701,7 +701,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
           child: ElevatedButton(
             onPressed: _isLoading ? null : _createSession,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5C6BC0),
+              backgroundColor: const Color(0xFF58C0F4),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

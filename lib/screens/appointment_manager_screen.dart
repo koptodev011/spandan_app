@@ -216,12 +216,6 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
       case 3: // Reports
         // TODO: Implement ReportsScreen
         break;
-      case 4: // Transactions
-        if (!mounted) return;
-        if (ModalRoute.of(context)?.settings.name != '/transactions') {
-          Navigator.pushReplacementNamed(context, '/transactions');
-        }
-        break;
     }
     
     // Update the selected index after navigation

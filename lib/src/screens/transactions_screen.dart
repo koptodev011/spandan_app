@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../models/transaction_model.dart';
 import '../widgets/app_drawer.dart';
+import 'add_transaction_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   static const routeName = '/transactions';
@@ -17,41 +20,52 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _typeFilter = 'all';
   String _categoryFilter = 'all';
-  
-  // Mock data - replace with actual data from your backend
+
   final List<Transaction> _transactions = [
     Transaction(
       id: '1',
+      type: TransactionType.income,
+      amount: 1200.00,
+      date: DateTime.now().subtract(const Duration(days: 2)),
+      description: 'Consultation Fee',
+      category: 'Consultation',
+      patientName: 'John Doe',
+    ),
+    Transaction(
+      id: '2',
       date: DateTime.now().subtract(const Duration(days: 1)),
-      description: 'Session with Sarah Johnson',
+      description: 'Office rent',
+      amount: 800.0,
+      type: TransactionType.expense,
+      category: 'Office Rent',
+    ),
+    Transaction(
+      id: '3',
+      date: DateTime.now().subtract(const Duration(days: 2)),
+      description: 'Session with Michael Chen',
+      amount: 120.0,
+      type: TransactionType.income,
+      category: 'Therapy Sessions',
+      patientName: 'Michael Chen',
+    ),
+    Transaction(
+      id: '4',
+      date: DateTime.now().subtract(const Duration(days: 2)),
+      description: 'Medical supplies',
+      amount: 45.0,
+      type: TransactionType.expense,
+      category: 'Medical Supplies',
+    ),
+    Transaction(
+      id: '5',
+      date: DateTime.now().subtract(const Duration(days: 3)),
+      description: 'Session with Emma Davis',
       amount: 150.0,
       type: TransactionType.income,
       category: 'Therapy Sessions',
-      patientName: 'Sarah Johnson',
+      patientName: 'Emma Davis',
     ),
-    // Add more mock transactions as needed
   ];
-
-  List<Transaction> get _filteredTransactions {
-    return _transactions.where((txn) {
-      final matchesSearch = txn.description.toLowerCase().contains(
-            _searchController.text.toLowerCase(),
-          ) ||
-          (txn.patientName?.toLowerCase().contains(
-                _searchController.text.toLowerCase(),
-              ) ??
-              false);
-
-      final matchesType = _typeFilter == 'all' ||
-          (_typeFilter == 'income' && txn.type == TransactionType.income) ||
-          (_typeFilter == 'expense' && txn.type == TransactionType.expense);
-
-      final matchesCategory = _categoryFilter == 'all' ||
-          txn.category.toLowerCase() == _categoryFilter.toLowerCase();
-
-      return matchesSearch && matchesType && matchesCategory;
-    }).toList();
-  }
 
   double get _totalIncome => _transactions
       .where((t) => t.type == TransactionType.income)
@@ -62,6 +76,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       .fold(0, (sum, t) => sum + t.amount);
 
   double get _netIncome => _totalIncome - _totalExpenses;
+
+  List<Transaction> get _filteredTransactions {
+    return _transactions.where((txn) {
+      final matchesSearch = _searchController.text.isEmpty ||
+          txn.description.toLowerCase().contains(_searchController.text.toLowerCase()) ||
+          (txn.patientName?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false);
+
+      final matchesType = _typeFilter == 'all' ||
+          (_typeFilter == 'income' && txn.type == TransactionType.income) ||
+          (_typeFilter == 'expense' && txn.type == TransactionType.expense);
+
+      final matchesCategory = _categoryFilter == 'all' ||
+          txn.category.toLowerCase() == _categoryFilter;
+
+      return matchesSearch && matchesType && matchesCategory;
+    }).toList();
+  }
 
   @override
   void dispose() {
@@ -74,15 +105,43 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Financial Transactions'),
+        title: Text(
+          'Financial Transactions',
+          style: GoogleFonts.inter(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Color(0xFF1E40AF)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddTransactionDialog(context),
-            tooltip: 'Add Transaction',
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddTransactionScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add, size: 20),
+              label: Text(isSmallScreen ? 'Add' : 'Add Transaction'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF58C0F4),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -92,93 +151,118 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Summary Cards
-            _buildSummaryCards(theme),
+            // Header with Title and Description
+            Text(
+              'Financial Overview',
+              style: GoogleFonts.inter(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Track your income and expenses',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
             const SizedBox(height: 24),
-            
+
+            // Summary Cards
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildSummaryCard(
+                    theme,
+                    title: 'Total Income',
+                    amount: _totalIncome,
+                    icon: Icons.trending_up_rounded,
+                    color: const Color(0xFF10B981),
+                    textColor: const Color(0xFF065F46),
+                    bgColor: const Color(0xFFD1FAE5),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildSummaryCard(
+                    theme,
+                    title: 'Total Expenses',
+                    amount: _totalExpenses,
+                    icon: Icons.trending_down_rounded,
+                    color: const Color(0xFFEF4444),
+                    textColor: const Color(0xFF991B1B),
+                    bgColor: const Color(0xFFFEE2E2),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildSummaryCard(
+                    theme,
+                    title: 'Net Income',
+                    amount: _netIncome,
+                    icon: Icons.account_balance_wallet_rounded,
+                    color: _netIncome >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    textColor: _netIncome >= 0 ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                    bgColor: _netIncome >= 0 ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
             // Filters
             _buildFilters(theme),
+            const SizedBox(height: 24),
+
+            // Transactions List Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Transactions',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+                if (!isSmallScreen) Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {},
+                      icon: const Icon(Icons.download_outlined, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {},
+                      icon: const Icon(Icons.upload_outlined, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
             const SizedBox(height: 16),
-            
+
             // Transactions List
             _buildTransactionsList(theme, textTheme, colorScheme),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSummaryCards(ThemeData theme) {
-    // Use LayoutBuilder to make the layout responsive
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // For small screens, show cards in a column
-        if (constraints.maxWidth < 600) {
-          return Column(
-            children: [
-              _buildSummaryCard(
-                theme,
-                title: 'Total Income',
-                amount: _totalIncome,
-                icon: Icons.trending_up,
-                color: Colors.green,
-              ),
-              const SizedBox(height: 12),
-              _buildSummaryCard(
-                theme,
-                title: 'Total Expenses',
-                amount: _totalExpenses,
-                icon: Icons.trending_down,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 12),
-              _buildSummaryCard(
-                theme,
-                title: 'Net Income',
-                amount: _netIncome,
-                icon: Icons.account_balance_wallet,
-                color: _netIncome >= 0 ? Colors.green : Colors.red,
-              ),
-            ],
-          );
-        } 
-        // For larger screens, show cards in a row
-        else {
-          return Row(
-            children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  theme,
-                  title: 'Total Income',
-                  amount: _totalIncome,
-                  icon: Icons.trending_up,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  theme,
-                  title: 'Total Expenses',
-                  amount: _totalExpenses,
-                  icon: Icons.trending_down,
-                  color: Colors.red,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  theme,
-                  title: 'Net Income',
-                  amount: _netIncome,
-                  icon: Icons.account_balance_wallet,
-                  color: _netIncome >= 0 ? Colors.green : Colors.red,
-                ),
-              ),
-            ],
-          );
-        }
-      },
     );
   }
 
@@ -188,38 +272,51 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     required double amount,
     required IconData icon,
     required Color color,
+    required Color textColor,
+    required Color bgColor,
   }) {
-    return Expanded(
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
       child: Card(
-        elevation: 2,
+        elevation: 0,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: bgColor,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: const Color(0xFF6B7280),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '\$${amount.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: color,
+                      color: textColor,
                     ),
                   ),
                 ],
@@ -439,63 +536,27 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     TextTheme textTheme,
     ColorScheme colorScheme,
   ) {
-    if (_filteredTransactions.isEmpty) {
+    final transactions = _filteredTransactions;
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+
+    if (transactions.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.account_balance_wallet_outlined,
-                size: 64,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 64,
+              color: theme.disabledColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No transactions found',
+              style: textTheme.titleMedium?.copyWith(
                 color: theme.disabledColor,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'No transactions found',
-                style: textTheme.titleMedium?.copyWith(
-                  color: theme.disabledColor,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              if (_searchController.text.isNotEmpty ||
-                  _typeFilter != 'all' ||
-                  _categoryFilter != 'all') ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Try adjusting your filters',
-                  style: textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _searchController.clear();
-                      _typeFilter = 'all';
-                      _categoryFilter = 'all';
-                    });
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Reset Filters'),
-                ),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Add a new transaction to get started',
-                  style: textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () => _showAddTransactionDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Transaction'),
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -503,21 +564,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _filteredTransactions.length,
+      itemCount: transactions.length,
       itemBuilder: (context, index) {
-        final txn = _filteredTransactions[index];
-        final isSmallScreen = MediaQuery.of(context).size.width < 600;
-        
+        final transaction = transactions[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: InkWell(
-            onTap: () => _showTransactionDetails(context, txn),
+            onTap: () => _showTransactionDetails(context, transaction),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: isSmallScreen
-                  ? _buildMobileTransactionItem(txn, Theme.of(context), Theme.of(context).textTheme)
-                  : _buildDesktopTransactionItem(txn, Theme.of(context), Theme.of(context).textTheme),
+                  ? _buildMobileTransactionItem(transaction, Theme.of(context), Theme.of(context).textTheme)
+                  : _buildDesktopTransactionItem(transaction, Theme.of(context), Theme.of(context).textTheme),
             ),
           ),
         );

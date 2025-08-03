@@ -58,15 +58,6 @@ class AppDrawer extends StatelessWidget {
                 ),
                 _buildMenuItem(
                   context: context,
-                  icon: Icons.account_balance_wallet_outlined,
-                  label: "Transactions",
-                  isSelected: true,
-                  onTap: () {
-                    Navigator.pushNamed(context, '/transactions');
-                  },
-                ),
-                _buildMenuItem(
-                  context: context,
                   icon: Icons.history_outlined,
                   label: "Completed Sessions",
                   isSelected: false,
@@ -77,7 +68,18 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.bar_chart_outlined,
                   label: "Reports",
                   isSelected: false,
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushReplacementNamed(context, '/reports');
+                  },
+                ),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.receipt_long_outlined,
+                  label: "Transactions",
+                  isSelected: false,
+                  onTap: () {
+                    Navigator.pushReplacementNamed(context, '/transactions');
+                  },
                 ),
               ],
             ),

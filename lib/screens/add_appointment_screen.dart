@@ -178,7 +178,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A237E)),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: widget.onBack,
         ),
         title: Text(
@@ -186,7 +186,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
           style: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF1A237E),
+            color: Colors.black,
           ),
         ),
         backgroundColor: Colors.white,
@@ -256,61 +256,153 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
         style: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: const Color(0xFF1A237E),
+          color: Colors.black,
         ),
       ),
     );
   }
 
+  List<Map<String, dynamic>> _filteredPatients = [];
+
   Widget _buildPatientDropdown() {
     // Show loading indicator while fetching
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 16),
+            Text('Loading patients...'),
+          ],
+        ),
+      );
     }
 
     // Show error message with retry button if there's an error
     if (_errorMessage != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.red),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: _fetchPatients,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF5BBFF2),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          border: Border.all(color: Colors.red[200]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
             ),
-            child: const Text(
-              'Retry',
-              style: TextStyle(color: Colors.white),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _fetchPatients,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[50],
+                  foregroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: Colors.red[300]!),
+                ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retry Loading Patients'),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
-    // Return dropdown with patients or empty if no patients
-    return DropdownButtonFormField<String>(
-      value: _selectedPatientId,
-      decoration: _inputDecoration(),
-      hint: const Text('Select a patient'),
-      isExpanded: true,
-      items: _patients.map<DropdownMenuItem<String>>((patient) {
-        return DropdownMenuItem(
-          value: patient['id']?.toString(),
-          child: Text(
-            patient['full_name'] ?? 'Unnamed Patient',
-            overflow: TextOverflow.ellipsis,
+    if (_patients.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text('No patients available'),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: ButtonTheme(
+          alignedDropdown: true,
+          child: DropdownButtonFormField<String>(
+            value: _selectedPatientId,
+            decoration: const InputDecoration(
+              hintText: 'Select a patient',
+              prefixIcon: Icon(Icons.person_outline, size: 20, color: Colors.grey),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+                borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            ),
+            isExpanded: true,
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.black87,
+            ),
+            dropdownColor: Colors.white,
+            items: _patients.map<DropdownMenuItem<String>>((patient) {
+              return DropdownMenuItem(
+                value: patient['id']?.toString(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      patient['full_name'] ?? 'Unnamed Patient',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (patient['phone'] != null)
+                      Text(
+                        patient['phone'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedPatientId = value;
+              });
+            },
+            validator: (value) => value == null ? 'Please select a patient' : null,
           ),
-        );
-      }).toList(),
-      onChanged: (value) => setState(() => _selectedPatientId = value),
-      validator: (value) => value == null ? 'Please select a patient' : null,
+        ),
+      ),
     );
   }
 
