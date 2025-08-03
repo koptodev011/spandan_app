@@ -4,6 +4,7 @@ import 'src/services/auth_service.dart';
 import 'src/screens/login_screen.dart';
 import 'src/screens/patients_screen.dart';
 import 'screens/appointment_manager_screen.dart';
+import 'screens/reports_screen.dart';
 import 'src/screens/transactions_screen.dart';
 
 void main() async {
@@ -56,6 +57,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
         '/appointments': (context) => const AppointmentManagerScreen(),
+        '/reports': (context) => const ReportsScreen(),
         '/transactions': (context) => const TransactionsScreen(),
       },
       // Check if user is already logged in

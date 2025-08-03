@@ -67,7 +67,7 @@ class SessionCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0A4B7D),
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -76,7 +76,7 @@ class SessionCard extends StatelessWidget {
                         '$age years • $gender',
                         style: GoogleFonts.inter(
                           fontSize: 14,
-                          color: const Color(0xFF5BBFF2),
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -86,14 +86,14 @@ class SessionCard extends StatelessWidget {
                           const Icon(
                             Icons.access_time,
                             size: 16,
-                            color: Color(0xFF5C6BC0),
+                            color: Colors.black,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             sessionTime,
                             style: GoogleFonts.inter(
                               fontSize: 14,
-                              color: const Color(0xFF5BBFF2),
+                              color: Colors.black,
                             ),
                           ),
                         ],
@@ -161,7 +161,7 @@ class SessionCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xFF5BBFF2),
+                          color: Colors.black,
                         ),
                       ),
                     ),

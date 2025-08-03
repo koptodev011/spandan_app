@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:flutter_app/src/screens/start_session_screen.dart';
 import 'package:flutter_app/src/screens/session_details_screen.dart';
+import 'package:flutter_app/src/screens/patient_history_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/sidebar.dart';
@@ -168,19 +169,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
               // Navigate to Reports
               // TODO: Implement ReportsScreen
               break;
-            case 4:
-              // Navigate to Transactions
-              if (!mounted) return;
-              if (ModalRoute.of(context)?.settings.name != '/transactions') {
-                Navigator.pushReplacementNamed(context, '/transactions');
-              }
-              break;
           }
         },
       ),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF1A237E)),
+          icon: const Icon(Icons.menu, color: Colors.black),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
         title: Column(
@@ -191,14 +185,14 @@ class _PatientsScreenState extends State<PatientsScreen> {
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A237E),
+                color: Colors.black,
               ),
             ),
             Text(
               "Today's scheduled therapy sessions",
               style: GoogleFonts.inter(
                 fontSize: 12,
-                color: const Color(0xFF5C6BC0),
+                color: Colors.black,
               ),
             ),
           ],
@@ -376,7 +370,23 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                     });
                                   },
                                   onViewHistory: () {
-                                    // TODO: Implement view history
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => PatientHistoryScreen(
+                                          patient: {
+                                            'id': session['patientId'],
+                                            'name': session['patientName'],
+                                            'age': session['age'],
+                                            'gender': session['gender'],
+                                            'joinDate': '2023-01-01', // Add actual join date from your data
+                                            'totalSessions': 0, // Update with actual count from your data
+                                            'lastSession': 'Today', // Update with actual last session date
+                                          },
+                                          onBack: () => Navigator.pop(context),
+                                        ),
+                                      ),
+                                    );
                                   },
                                 );
                               },
@@ -384,13 +394,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
                           ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showStartSessionDialog(context);
-        },
-        backgroundColor: const Color(0xFF5C6BC0),
-        child: const Icon(Icons.video_call, color: Colors.white, size: 28),
       ),
     );
   }
