@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'src/services/auth_service.dart';
 import 'src/screens/login_screen.dart';
 import 'src/screens/patients_screen.dart';
-import 'screens/appointment_manager_screen.dart';
-import 'screens/reports_screen.dart';
+import 'src/screens/appointment_manager_screen.dart';
+import 'src/screens/reports_screen.dart';
 import 'src/screens/transactions_screen.dart';
 
 void main() async {

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:flutter_app/src/screens/start_session_screen.dart';
-import 'package:flutter_app/src/screens/session_details_screen.dart';
-import 'package:flutter_app/src/screens/patient_history_screen.dart';
+import 'start_session_screen.dart';
+import 'session_details_screen.dart';
+import 'patient_history_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/sidebar.dart';
@@ -53,8 +53,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
       final token = await AuthService.getToken();
       if (token == null) throw Exception('Authentication required');
 
+      // Fetch upcoming appointments instead of just today's
       final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/appointments/today'),
+        Uri.parse('${ApiService.baseUrl}/appointments/upcoming'),
         headers: ApiService.getHeaders(token: token),
       );
 
@@ -65,26 +66,42 @@ class _PatientsScreenState extends State<PatientsScreen> {
         if (data['status'] == 'success') {
           final List<dynamic> appointments = data['data'] ?? [];
           
+          // Convert to list first, then sort
+          final tempSessions = appointments.map((appointment) {
+            final patient = appointment['patient'] ?? {};
+            final dateTime = DateTime.parse(appointment['time']);
+            final formattedDate = DateFormat('MMM d, yyyy').format(dateTime);
+            final formattedTime = DateFormat('h:mm a').format(dateTime);
+            
+            return {
+              'id': appointment['id'],
+              'patientId': appointment['patient_id'],
+              'patientName': patient['full_name'] ?? 'Unknown',
+              'age': patient['age'] ?? 0,
+              'gender': (patient['gender'] ?? 'Other').toString().toLowerCase() == 'male' ? 'Male' : 'Female',
+              'sessionDate': formattedDate,
+              'sessionTime': formattedTime,
+              'sessionType': (appointment['appointment_type'] ?? 'remote').toString().toLowerCase() == 'in_person' 
+                  ? 'In-Person' 
+                  : 'Remote',
+              'durationMinutes': appointment['duration_minutes'] ?? 30,
+              'note': appointment['note'] ?? '',
+              'dateTime': dateTime,
+            };
+          }).toList();
+          
+          // Sort the list by date and time
+          tempSessions.sort((a, b) => (a['dateTime'] as DateTime).compareTo(b['dateTime'] as DateTime));
+          
+          // Remove the temporary dateTime field
+          final finalSessions = tempSessions.map((appt) {
+            final newAppt = Map<String, dynamic>.from(appt);
+            newAppt.remove('dateTime');
+            return newAppt;
+          }).toList();
+          
           setState(() {
-            sessions = appointments.map((appointment) {
-              final patient = appointment['patient'] ?? {};
-              final dateTime = DateTime.parse(appointment['time']);
-              final formattedTime = DateFormat('h:mm a').format(dateTime);
-              
-              return {
-                'id': appointment['id'],
-                'patientId': appointment['patient_id'],
-                'patientName': patient['full_name'] ?? 'Unknown',
-                'age': patient['age'] ?? 0,
-                'gender': (patient['gender'] ?? 'Other').toString().toLowerCase() == 'male' ? 'Male' : 'Female',
-                'sessionTime': 'Today: $formattedTime',
-                'sessionType': (appointment['appointment_type'] ?? 'remote').toString().toLowerCase() == 'in-person' 
-                    ? 'In-Person' 
-                    : 'Remote',
-                'durationMinutes': appointment['duration_minutes'] ?? 30,
-                'note': appointment['note'] ?? '',
-              };
-            }).toList();
+            sessions = finalSessions;
           });
         } else {
           throw Exception(data['message'] ?? 'Failed to load today\'s sessions');
@@ -181,7 +198,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Today's Upcoming Sessions",
+              "Upcoming Sessions",
               style: GoogleFonts.inter(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -189,7 +206,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
               ),
             ),
             Text(
-              "Today's scheduled therapy sessions",
+              "Scheduled therapy sessions",
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: Colors.black,
@@ -214,13 +231,18 @@ class _PatientsScreenState extends State<PatientsScreen> {
               // If we got a true result, refresh the patient list
               if (result == true) {
                 if (mounted) {
-                  // TODO: Implement refresh logic when we have the API integration
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('New patient added successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  // Refresh the list of sessions
+                  await _fetchTodaysSessions();
+                  
+                  // Show success message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('New patient added successfully!'),
+                        backgroundColor: Colors.black87,
+                      ),
+                    );
+                  }
                 }
               }
             },
@@ -483,26 +505,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
         builder: (context) => StartSessionScreen(
           patient: patient,
           onBack: () => Navigator.pop(context),
-          onStartSession: (sessionData) async {
-            // Close the start session screen
-            Navigator.pop(context);
-            
-            // Navigate to the SessionDetailsScreen with the session data
+          onStartSession: (sessionData) {
+            // Handle the started session data if needed
             if (mounted) {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SessionDetailsScreen(
-                    patient: patient,
-                    onBack: () => Navigator.pop(context),
-                  ),
-                ),
-              );
-              
-              // Show a success message when returning from session details
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Session saved successfully'),
+                  content: Text('Session started successfully'),
                   backgroundColor: Colors.green,
                 ),
               );
@@ -510,7 +518,13 @@ class _PatientsScreenState extends State<PatientsScreen> {
           },
         ),
       ),
-    );
+    ).then((_) {
+      // This will be called when returning from the session screen
+      if (mounted) {
+        // Refresh the sessions list when returning
+        _fetchTodaysSessions();
+      }
+    });
   }
 
   void _showStartSessionDialog(BuildContext context) {

@@ -474,12 +474,18 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
   }
 
   Widget _buildSessionCard(Map<String, dynamic> session) {
-    final sessionType = session['type']?.toString().toLowerCase() ?? '';
+    final sessionType = session['type']?.toString().toLowerCase() ?? 'remote';
     final duration = _formatDuration(session['duration']?.toString() ?? '0 mins');
+    final date = DateTime.parse(session['date']);
+    final time = session['time'] ?? '10:00 AM';
+    final notes = session['notes'] ?? 'No session notes available.';
+    final clinicalNotes = session['clinical_notes'] ?? 'No clinical notes available.';
+    final status = session['status']?.toString().toLowerCase() ?? 'completed';
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       elevation: 0,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade200),
@@ -489,59 +495,176 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Date and Status row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  DateFormat('MMM d, yyyy').format(DateTime.parse(session['date'])),
+                  DateFormat('EEEE, MMMM d, yyyy').format(date),
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
+                    color: const Color(0xFF1E293B),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(session['status']).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: _getStatusColor(status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    session['status'].toString().toUpperCase(),
+                    status.toUpperCase(),
                     style: GoogleFonts.inter(
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: _getStatusColor(session['status']),
+                      color: _getStatusColor(status),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            
+            const SizedBox(height: 12),
+            
+            // Mood indicator row
             Row(
               children: [
-                _buildSessionInfo(Icons.access_time, session['time'] ?? ''),
+                Text(
+                  'Mood: ',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                Text(
+                  '${_parseMoodValue(session['mood'])}/10',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _getMoodColor(_parseMoodValue(session['mood']).toDouble()),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Time and Duration row
+            Row(
+              children: [
+                _buildSessionInfo(Icons.access_time, '$time ($duration)'),
                 const SizedBox(width: 16),
                 _buildSessionInfo(
                   sessionType == 'remote' ? Icons.videocam_outlined : Icons.location_on_outlined,
-                  '${sessionType == 'remote' ? 'Remote' : 'In-Person'} • $duration',
+                  sessionType == 'remote' ? 'Remote' : 'In-Person',
                 ),
-                if (session['mood'] != null) ...[
-                  const Spacer(),
-                  _buildMoodIndicator(session['mood']) // Handles any mood value type
-                ],
               ],
             ),
-            if (session['notes'] != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                session['notes'],
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: const Color(0xFF64748B),
-                ),
+            
+            const SizedBox(height: 16),
+            
+            // Session Notes
+            Text(
+              'Session Notes:',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF1E293B),
               ),
-            ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              notes,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: const Color(0xFF64748B),
+                height: 1.5,
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Clinical Notes in a highlighted box
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Clinical Notes:',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    clinicalNotes,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: const Color(0xFF475569),
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    // Handle View Details
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'View Details',
+                    style: GoogleFonts.inter(
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    // Handle Export Notes
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'Export Notes',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
