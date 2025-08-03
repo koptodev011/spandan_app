@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../src/services/api_service.dart';
-import '../src/services/auth_service.dart';
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
 
 class AddAppointmentScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onSave;

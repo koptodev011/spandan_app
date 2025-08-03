@@ -73,6 +73,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           'full_name': _formData['name'],
           'age': int.parse(_formData['age']),
           'gender': _formData['gender'],
+          'marital_status': _formData['marital_status'],
+          'profession': _formData['profession'],
           'phone': _formData['phone'],
           'email': _formData['email'],
           'address': _formData['address'],
@@ -82,7 +84,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           'allergies': _formData['allergies'],
           'appointment_date': _formData['appointmentDate'],
           'appointment_time': _formData['appointmentTime'],
-          'appointment_type': _formData['appointmentType'],
+          'appointment_type': _formData['appointmentType'] == 'in-person' ? 'in_person' : 'remote',
           'duration_minutes': int.parse(_formData['duration']),
           'appointment_note': _formData['notes'],
         };
@@ -104,9 +106,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
         if (response.statusCode >= 200 && response.statusCode < 300) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Patient added successfully')),
-            );
+            // Just pop with success status, we'll show a message in the parent screen
             Navigator.pop(context, true);
           }
         } else {
@@ -154,13 +154,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       backgroundColor: const Color(0xFFF5FAFE),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A237E)),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF58C0F4)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Add New Patient',
           style: GoogleFonts.inter(
-            color: const Color(0xFF1A237E),
+            color: Colors.black,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -181,12 +181,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                       icon: Icons.person_outline,
                       children: [
                         _buildTextFormField(
-                          label: 'Full Name *',
+                          label: 'Full Name',
                           onSaved: (value) => _formData['name'] = value,
                           validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                          isRequired: true,
                         ),
                         _buildTextFormField(
-                          label: 'Age *',
+                          label: 'Age',
                           keyboardType: TextInputType.number,
                           onSaved: (value) => _formData['age'] = value,
                           validator: (value) => value == null || value.isEmpty
@@ -194,21 +195,87 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                               : int.tryParse(value) == null
                                   ? 'Invalid number'
                                   : null,
+                          isRequired: true,
                         ),
-                        DropdownButtonFormField<String>(
-                          value: _formData['gender'],
-                          decoration: const InputDecoration(labelText: 'Gender *'),
-                          items: const [
-                            DropdownMenuItem(value: 'male', child: Text('Male')),
-                            DropdownMenuItem(value: 'female', child: Text('Female')),
-                            DropdownMenuItem(value: 'other', child: Text('Other')),
-                            DropdownMenuItem(
-                              value: 'prefer-not-to-say',
-                              child: Text('Prefer not to say'),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Gender', isRequired: true),
+                            Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.grey[50],
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _formData['gender'],
+                                  isExpanded: true,
+                                  icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF58C0F4)),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  dropdownColor: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  items: const [
+                                    DropdownMenuItem(value: 'male', child: Text('Male')),
+                                    DropdownMenuItem(value: 'female', child: Text('Female')),
+                                    DropdownMenuItem(value: 'other', child: Text('Other')),
+                                    DropdownMenuItem(
+                                      value: 'prefer-not-to-say',
+                                      child: Text('Prefer not to say'),
+                                    ),
+                                  ],
+                                  onChanged: (value) => setState(() => _formData['gender'] = value),
+                                ),
+                              ),
                             ),
                           ],
-                          onChanged: (value) => setState(() => _formData['gender'] = value),
-                          validator: (value) => value == null ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Marital Status'),
+                            Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.grey[50],
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _formData['marital_status'] ?? 'single',
+                                  isExpanded: true,
+                                  icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF58C0F4)),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                  dropdownColor: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  items: const [
+                                    DropdownMenuItem(value: 'single', child: Text('Single')),
+                                    DropdownMenuItem(value: 'married', child: Text('Married')),
+                                    DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
+                                    DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+                                    DropdownMenuItem(value: 'separated', child: Text('Separated')),
+                                  ],
+                                  onChanged: (value) => setState(() => _formData['marital_status'] = value),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextFormField(
+                          label: 'Profession',
+                          onSaved: (value) => _formData['profession'] = value,
                         ),
                       ],
                     ),
@@ -329,13 +396,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           children: [
             Row(
               children: [
-                Icon(icon, color: const Color(0xFF5C6BC0)),
+                Icon(icon, color: const Color(0xFF58C0F4)),
                 const SizedBox(width: 8),
                 Text(title,
                     style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1A237E))),
+                        color: Colors.black)),
               ],
             ),
             const SizedBox(height: 16),
@@ -357,97 +424,291 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     return spaced;
   }
 
+  Widget _buildLabel(String text, {bool isRequired = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: RichText(
+        text: TextSpan(
+          text: text,
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+          children: [
+            if (isRequired)
+              const TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextFormField({
     required String label,
     int maxLines = 1,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     void Function(String?)? onSaved,
+    bool showLabel = true,
+    bool isRequired = false,
   }) {
-    return TextFormField(
-      decoration: InputDecoration(labelText: label),
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      validator: validator,
-      onSaved: onSaved,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showLabel) _buildLabel(label, isRequired: isRequired),
+        TextFormField(
+          decoration: InputDecoration(
+            labelText: showLabel ? null : label,
+            labelStyle: GoogleFonts.inter(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.grey),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF58C0F4), width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            color: Colors.black87,
+          ),
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          validator: validator,
+          onSaved: onSaved,
+        ),
+      ],
     );
   }
 
   Widget _buildDatePicker() {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _selectedDate,
-          firstDate: DateTime.now(),
-          lastDate: DateTime(2100),
-        );
-        if (picked != null) {
-          setState(() {
-            _selectedDate = picked;
-            _formData['appointmentDate'] = DateFormat('yyyy-MM-dd').format(picked);
-          });
-        }
-      },
-      child: InputDecorator(
-        decoration: const InputDecoration(labelText: 'Appointment Date *'),
-        child: Text(
-          _formData['appointmentDate'].isNotEmpty
-              ? DateFormat('MMM dd, yyyy')
-                  .format(DateTime.parse(_formData['appointmentDate']))
-              : 'Select date',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            'Appointment Date *',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
         ),
-      ),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate,
+              firstDate: DateTime.now(),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              setState(() {
+                _selectedDate = picked;
+                _formData['appointmentDate'] = DateFormat('yyyy-MM-dd').format(picked);
+              });
+            }
+          },
+          child: Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[50],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _formData['appointmentDate'].isNotEmpty
+                      ? DateFormat('MMM dd, yyyy')
+                          .format(DateTime.parse(_formData['appointmentDate']))
+                      : 'Select date',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: _formData['appointmentDate'].isNotEmpty ? Colors.black87 : Colors.grey,
+                  ),
+                ),
+                const Icon(Icons.calendar_today, size: 20, color: Color(0xFF58C0F4)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildTimePicker() {
-    return InkWell(
-      onTap: () async {
-        final picked = await showTimePicker(context: context, initialTime: _selectedTime);
-        if (picked != null) {
-          setState(() {
-            _selectedTime = picked;
-            _formData['appointmentTime'] =
-                '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-          });
-        }
-      },
-      child: InputDecorator(
-        decoration: const InputDecoration(labelText: 'Appointment Time *'),
-        child: Text(
-          _formData['appointmentTime'].isNotEmpty
-              ? _formData['appointmentTime']
-              : 'Select time',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            'Appointment Time *',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
         ),
-      ),
+        InkWell(
+          onTap: () async {
+            final picked = await showTimePicker(context: context, initialTime: _selectedTime);
+            if (picked != null) {
+              setState(() {
+                _selectedTime = picked;
+                _formData['appointmentTime'] =
+                    '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+              });
+            }
+          },
+          child: Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.grey[50],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _formData['appointmentTime'].isNotEmpty
+                      ? _formData['appointmentTime']
+                      : 'Select time',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: _formData['appointmentTime'].isNotEmpty ? Colors.black87 : Colors.grey,
+                  ),
+                ),
+                const Icon(Icons.access_time, size: 20, color: Color(0xFF58C0F4)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildDropdownRow() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            value: _formData['appointmentType'],
-            decoration: const InputDecoration(labelText: 'Type'),
-            items: const [
-              DropdownMenuItem(value: 'in-person', child: Text('In-person')),
-              DropdownMenuItem(value: 'remote', child: Text('Remote')),
-            ],
-            onChanged: (value) => setState(() => _formData['appointmentType'] = value),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            'Appointment Type & Duration *',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            value: _formData['duration'],
-            decoration: const InputDecoration(labelText: 'Duration'),
-            items: ['15', '30', '45', '60', '90', '120']
-                .map((e) => DropdownMenuItem(value: e, child: Text('$e min')))
-                .toList(),
-            onChanged: (value) => setState(() => _formData['duration'] = value),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _formData['appointmentType'],
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF58C0F4)),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'in-person',
+                            child: Text('In-person'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'remote',
+                            child: Text('Remote'),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => _formData['appointmentType'] = value),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _formData['duration'],
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF58C0F4)),
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        items: ['15', '30', '45', '60', '90', '120']
+                            .map((e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text('$e min'),
+                                ))
+                            .toList(),
+                        onChanged: (value) => setState(() => _formData['duration'] = value),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

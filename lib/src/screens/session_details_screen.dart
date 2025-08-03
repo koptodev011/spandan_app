@@ -226,7 +226,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       systemOverlayStyle: SystemUiOverlayStyle.dark,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF4F46E5)),
-        onPressed: widget.onBack,
+        onPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else if (widget.onBack != null) {
+            widget.onBack();
+          }
+        },
         padding: const EdgeInsets.only(left: 16, right: 8),
       ),
       title: Text(

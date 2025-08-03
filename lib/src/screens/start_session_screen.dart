@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
+import 'session_details_screen.dart';
 
 class StartSessionScreen extends StatefulWidget {
   final Map<String, dynamic> patient;
@@ -616,21 +617,38 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
       if (response.statusCode == 201) {
         // Session created successfully
         if (mounted) {
+          final responseData = jsonDecode(response.body);
+          final sessionData = responseData is Map && responseData.containsKey('data') 
+              ? responseData['data'] 
+              : responseData;
+          
+          // Navigate to SessionDetailsScreen with the created session data
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SessionDetailsScreen(
+                patient: {
+                  ...widget.patient,
+                  'session_id': sessionData['id'] ?? sessionData['session_id'],
+                  'session_type': _sessionType,
+                  'start_time': DateTime.now().toIso8601String(),
+                },
+                onBack: widget.onBack,
+              ),
+            ),
+          );
+          
+          // Also notify parent if needed
+          if (widget.onStartSession != null) {
+            widget.onStartSession(sessionData);
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Session created successfully'),
               backgroundColor: Colors.green,
             ),
           );
-          // Pass the created session data to the parent widget
-          final responseData = jsonDecode(response.body);
-          if (widget.onStartSession != null) {
-            if (responseData is Map && responseData.containsKey('data')) {
-              widget.onStartSession(responseData['data']);
-            } else {
-              widget.onStartSession(responseData);
-            }
-          }
         }
       } else {
         // Handle API error
