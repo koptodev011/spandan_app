@@ -7,19 +7,32 @@ class AuthService {
   
   // Use secure storage for mobile and shared preferences for web
   static final _secureStorage = FlutterSecureStorage();
-  static late final SharedPreferences? _prefs;
+  static SharedPreferences? _prefs;
+  static bool _isPrefsInitialized = false;
   
-  // Initialize shared preferences for web
-  static Future<void> init() async {
-    if (kIsWeb) {
-      _prefs = await SharedPreferences.getInstance();
+  // Get shared preferences instance (lazy initialization for web)
+  static Future<SharedPreferences?> get _preferences async {
+    if (!kIsWeb) return null;
+    
+    if (!_isPrefsInitialized) {
+      try {
+        _prefs = await SharedPreferences.getInstance();
+        _isPrefsInitialized = true;
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error initializing SharedPreferences: $e');
+        }
+      }
     }
+    
+    return _prefs;
   }
 
   // Save the authentication token
   static Future<void> saveToken(String token) async {
     if (kIsWeb) {
-      await _prefs?.setString(_tokenKey, token);
+      final prefs = await _preferences;
+      await prefs?.setString(_tokenKey, token);
     } else {
       await _secureStorage.write(key: _tokenKey, value: token);
     }
@@ -31,10 +44,14 @@ class AuthService {
   // Get the stored authentication token
   static Future<String?> getToken() async {
     try {
-      final token = kIsWeb 
-          ? _prefs?.getString(_tokenKey)
-          : await _secureStorage.read(key: _tokenKey);
-          
+      String? token;
+      if (kIsWeb) {
+        final prefs = await _preferences;
+        token = prefs?.getString(_tokenKey);
+      } else {
+        token = await _secureStorage.read(key: _tokenKey);
+      }
+      
       if (kDebugMode) {
         print('Retrieved token: ${token != null ? '${token.substring(0, 10)}...' : 'null'}');
       }
@@ -50,7 +67,8 @@ class AuthService {
   // Remove the authentication token (logout)
   static Future<void> deleteToken() async {
     if (kIsWeb) {
-      await _prefs?.remove(_tokenKey);
+      final prefs = await _preferences;
+      await prefs?.remove(_tokenKey);
     } else {
       await _secureStorage.delete(key: _tokenKey);
     }

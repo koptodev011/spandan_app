@@ -39,17 +39,42 @@ class Transaction {
 
   // Create from JSON
   factory Transaction.fromJson(Map<String, dynamic> json) {
+    // Safely parse amount - handle both string and number types
+    double parseAmount(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
+    // Safely parse date
+    DateTime parseDate(dynamic dateValue) {
+      try {
+        if (dateValue is String) return DateTime.parse(dateValue);
+        if (dateValue is DateTime) return dateValue;
+        return DateTime.now();
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+
+    // Safely parse transaction type
+    TransactionType parseType(dynamic typeValue) {
+      if (typeValue == null) return TransactionType.expense;
+      final typeStr = typeValue.toString().toLowerCase();
+      if (typeStr.contains('income')) return TransactionType.income;
+      return TransactionType.expense;
+    }
+
     return Transaction(
-      id: json['id'],
-      date: DateTime.parse(json['date']),
-      description: json['description'],
-      amount: (json['amount'] as num).toDouble(),
-      type: json['type'] == 'TransactionType.income' 
-          ? TransactionType.income 
-          : TransactionType.expense,
-      category: json['category'],
-      patientId: json['patientId'],
-      patientName: json['patientName'],
+      id: json['id']?.toString() ?? '',
+      date: parseDate(json['date']),
+      description: json['description']?.toString() ?? '',
+      amount: parseAmount(json['amount']),
+      type: parseType(json['type']),
+      category: json['category']?.toString() ?? 'Uncategorized',
+      patientId: json['patientId']?.toString(),
+      patientName: json['patientName']?.toString(),
     );
   }
 
