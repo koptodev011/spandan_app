@@ -68,7 +68,10 @@ class Sidebar extends StatelessWidget {
                   icon: Icons.history_outlined,
                   label: "Completed Sessions",
                   isSelected: selectedIndex == 2,
-                  onTap: () => onItemTapped(2),
+                  onTap: () {
+                    onItemTapped(2);
+                    Navigator.pushNamed(context, '/completed-sessions');
+                  },
                 ),
                 _buildMenuItem(
                   context: context,
