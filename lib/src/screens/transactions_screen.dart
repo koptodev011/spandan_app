@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
 
 import '../models/transaction_model.dart';
+import '../services/payment_service.dart';
 import '../widgets/app_drawer.dart';
 import 'add_transaction_screen.dart';
 
@@ -18,86 +20,270 @@ class TransactionsScreen extends StatefulWidget {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final PaymentService _paymentService = PaymentService();
+  
+  // State variables
   String _typeFilter = 'all';
   String _categoryFilter = 'all';
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 1;
+  final int _perPage = 10;
+  Timer? _debounceTimer;
+  
+  // Data
+  List<Transaction> _transactions = [];
+  Map<String, dynamic> _summaryData = {};
+  List<String> _categories = [];
 
-  final List<Transaction> _transactions = [
-    Transaction(
-      id: '1',
-      type: TransactionType.income,
-      amount: 1200.00,
-      date: DateTime.now().subtract(const Duration(days: 2)),
-      description: 'Consultation Fee',
-      category: 'Consultation',
-      patientName: 'John Doe',
-    ),
-    Transaction(
-      id: '2',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      description: 'Office rent',
-      amount: 800.0,
-      type: TransactionType.expense,
-      category: 'Office Rent',
-    ),
-    Transaction(
-      id: '3',
-      date: DateTime.now().subtract(const Duration(days: 2)),
-      description: 'Session with Michael Chen',
-      amount: 120.0,
-      type: TransactionType.income,
-      category: 'Therapy Sessions',
-      patientName: 'Michael Chen',
-    ),
-    Transaction(
-      id: '4',
-      date: DateTime.now().subtract(const Duration(days: 2)),
-      description: 'Medical supplies',
-      amount: 45.0,
-      type: TransactionType.expense,
-      category: 'Medical Supplies',
-    ),
-    Transaction(
-      id: '5',
-      date: DateTime.now().subtract(const Duration(days: 3)),
-      description: 'Session with Emma Davis',
-      amount: 150.0,
-      type: TransactionType.income,
-      category: 'Therapy Sessions',
-      patientName: 'Emma Davis',
-    ),
-  ];
-
-  double get _totalIncome => _transactions
-      .where((t) => t.type == TransactionType.income)
-      .fold(0, (sum, t) => sum + t.amount);
-
-  double get _totalExpenses => _transactions
-      .where((t) => t.type == TransactionType.expense)
-      .fold(0, (sum, t) => sum + t.amount);
-
-  double get _netIncome => _totalIncome - _totalExpenses;
-
-  List<Transaction> get _filteredTransactions {
-    return _transactions.where((txn) {
-      final matchesSearch = _searchController.text.isEmpty ||
-          txn.description.toLowerCase().contains(_searchController.text.toLowerCase()) ||
-          (txn.patientName?.toLowerCase().contains(_searchController.text.toLowerCase()) ?? false);
-
-      final matchesType = _typeFilter == 'all' ||
-          (_typeFilter == 'income' && txn.type == TransactionType.income) ||
-          (_typeFilter == 'expense' && txn.type == TransactionType.expense);
-
-      final matchesCategory = _categoryFilter == 'all' ||
-          txn.category.toLowerCase() == _categoryFilter;
-
-      return matchesSearch && matchesType && matchesCategory;
-    }).toList();
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+    _loadInitialData();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
+  }
+  
+  Future<void> _loadInitialData() async {
+    // Use a microtask to ensure this runs after the current build phase
+    Future.microtask(() async {
+      if (!mounted) return;
+      
+      try {
+        // Load data in parallel but don't wait for completion
+        unawaited(Future.wait([
+          _fetchTransactions(),
+          _fetchSummary(),
+          _fetchCategories(),
+        ]));
+      } catch (e) {
+        if (!mounted) return;
+        
+        // Schedule error handling for after the current build phase
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load data: $e')),
+          );
+        });
+      }
+    });
+  }
+
+  double get _totalIncome {
+    final value = _summaryData['income'];
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+  
+  double get _totalExpenses {
+    final value = _summaryData['expenses'];
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+  
+  double get _netIncome {
+    final value = _summaryData['net_income'];
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  // Handle search input with debounce
+  void _onSearchChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        // Just update the UI, filtering is done in the getter
+      });
+    });
+  }
+  
+  // Fetch all transactions from API
+  Future<void> _fetchTransactions() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // First fetch the first page to get total count
+      final firstPage = await _paymentService.getPayments(
+        type: 'all',
+        category: 'all',
+        search: '',
+        page: 1,
+        perPage: _perPage,
+      );
+      
+      final totalPages = firstPage['meta']['last_page'] as int;
+      List<dynamic> allTransactions = List.from(firstPage['data']);
+      
+      // If there are more pages, fetch them in parallel
+      if (totalPages > 1) {
+        final futures = <Future>[];
+        
+        for (int page = 2; page <= totalPages; page++) {
+          futures.add(
+            _paymentService.getPayments(
+              type: 'all',
+              category: 'all',
+              search: '',
+              page: page,
+              perPage: _perPage,
+            ).then((response) {
+              allTransactions.addAll(response['data']);
+            })
+          );
+        }
+        
+        await Future.wait(futures);
+      }
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _transactions = allTransactions
+            .map((json) => Transaction.fromJson(json))
+            .toList();
+        _isLoading = false;
+      });
+      
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load transactions: $e')),
+        );
+      }
+    }
+  }
+  
+  // Get filtered transactions based on current filters and search
+  List<Transaction> get _filteredTransactions {
+    String searchTerm = _searchController.text.toLowerCase();
+    
+    return _transactions.where((txn) {
+      // Filter by type
+      if (_typeFilter != 'all' && txn.type?.name != _typeFilter) {
+        return false;
+      }
+      
+      // Filter by category
+      if (_categoryFilter != 'all' && txn.category != _categoryFilter) {
+        return false;
+      }
+      
+      // Filter by search term
+      if (searchTerm.isNotEmpty) {
+        final description = txn.description?.toLowerCase() ?? '';
+        final amount = txn.amount.toString();
+        final category = txn.category?.toLowerCase() ?? '';
+        final type = txn.type?.name ?? '';
+        
+        if (!description.contains(searchTerm) &&
+            !amount.contains(searchTerm) &&
+            !category.contains(searchTerm) &&
+            !type.toLowerCase().contains(searchTerm)) {
+          return false;
+        }
+      }
+      
+      return true;
+    }).toList();
+  }
+  
+  // Fetch summary data
+  Future<void> _fetchSummary() async {
+    try {
+      final response = await _paymentService.getPaymentSummary();
+      if (!mounted) return;
+      
+      // Schedule state update for after the current build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _summaryData = response['data'] ?? {};
+        });
+      });
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Schedule error handling for after the current build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load summary: $e')),
+        );
+      });
+    }
+  }
+  
+  // Fetch categories
+  Future<void> _fetchCategories() async {
+    try {
+      final response = await _paymentService.getPaymentCategories();
+      if (!mounted) return;
+      
+      // Schedule state update for after the current build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _categories = [
+            'all',
+            ...(response['data']['income_categories'] as List<dynamic>).cast<String>(),
+            ...(response['data']['expense_categories'] as List<dynamic>).cast<String>(),
+          ];
+        });
+      });
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Schedule error handling for after the current build phase
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load categories: $e')),
+        );
+      });
+    }
+  }
+
+  // Handle type filter change
+  void _handleTypeFilterChanged(String? value) {
+    if (value != null && value != _typeFilter) {
+      setState(() {
+        _typeFilter = value;
+      });
+    }
+  }
+  
+  // Handle category filter change
+  void _handleCategoryChanged(String? value) {
+    if (value != null && value != _categoryFilter) {
+      setState(() {
+        _categoryFilter = value;
+      });
+    }
   }
 
   @override
@@ -171,11 +357,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             const SizedBox(height: 24),
 
             // Summary Cards
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildSummaryCard(
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
                     theme,
                     title: 'Total Income',
                     amount: _totalIncome,
@@ -184,8 +369,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     textColor: const Color(0xFF065F46),
                     bgColor: const Color(0xFFD1FAE5),
                   ),
-                  const SizedBox(width: 12),
-                  _buildSummaryCard(
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSummaryCard(
                     theme,
                     title: 'Total Expenses',
                     amount: _totalExpenses,
@@ -194,8 +381,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     textColor: const Color(0xFF991B1B),
                     bgColor: const Color(0xFFFEE2E2),
                   ),
-                  const SizedBox(width: 12),
-                  _buildSummaryCard(
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildSummaryCard(
                     theme,
                     title: 'Net Income',
                     amount: _netIncome,
@@ -204,8 +393,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     textColor: _netIncome >= 0 ? const Color(0xFF065F46) : const Color(0xFF991B1B),
                     bgColor: _netIncome >= 0 ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 24),
@@ -275,6 +464,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     required Color textColor,
     required Color bgColor,
   }) {
+    // Safely format the amount
+    final formattedAmount = amount.isFinite 
+        ? '\$${amount.toStringAsFixed(2)}' 
+        : '\$0.00';
+        
     return Container(
       width: 280,
       margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -312,7 +506,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${amount.toStringAsFixed(2)}',
+                    formattedAmount,
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -329,205 +523,166 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildFilters(ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Filters', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            // Use LayoutBuilder to adjust layout based on screen width
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // For small screens, stack the filters vertically
-                if (constraints.maxWidth < 600) {
-                  return Column(
-                    children: [
-                      // Search Field
-                      TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search transactions...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      // Type Filter
-                      DropdownButtonFormField<String>(
-                        value: _typeFilter,
-                        decoration: InputDecoration(
-                          labelText: 'Type',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                        ),
-                        isExpanded: true,
-                        items: [
-                          'all',
-                          'income',
-                          'expense',
-                        ].map((type) {
-                          return DropdownMenuItem(
-                            value: type,
-                            child: Text(
-                              type == 'all' 
-                                ? 'All Types' 
-                                : '${type[0].toUpperCase()}${type.substring(1)}',
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _typeFilter = value;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      // Category Filter
-                      DropdownButtonFormField<String>(
-                        value: _categoryFilter,
-                        decoration: InputDecoration(
-                          labelText: 'Category',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                        ),
-                        isExpanded: true,
-                        items: [
-                          'all',
-                          ...TransactionCategories.income,
-                          ...TransactionCategories.expense,
-                        ].toSet().toList().map<DropdownMenuItem<String>>((category) {
-                          return DropdownMenuItem<String>(
-                            value: category.toLowerCase(),
-                            child: Text(
-                              category == 'all' ? 'All Categories' : category,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _categoryFilter = value;
-                            });
-                          }
-                        },
-                      ),
-                    ],
-                  );
-                } 
-                // For larger screens, show filters in a single row
-                else {
-                  return Row(
-                    children: [
-                      // Search Field
-                      Expanded(
-                        flex: 3,
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search transactions...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Type Filter
-                      Expanded(
-                        flex: 2,
-                        child: DropdownButtonFormField<String>(
-                          value: _typeFilter,
-                          decoration: InputDecoration(
-                            labelText: 'Type',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          ),
-                          isExpanded: true,
-                          items: [
-                            'all',
-                            'income',
-                            'expense',
-                          ].map((type) {
-                            return DropdownMenuItem(
-                              value: type,
-                              child: Text(
-                                type == 'all' 
-                                  ? 'All Types' 
-                                  : '${type[0].toUpperCase()}${type.substring(1)}',
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _typeFilter = value;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Category Filter
-                      Expanded(
-                        flex: 3,
-                        child: DropdownButtonFormField<String>(
-                          value: _categoryFilter,
-                          decoration: InputDecoration(
-                            labelText: 'Category',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                          ),
-                          isExpanded: true,
-                          items: [
-                            'all',
-                            ...TransactionCategories.income,
-                            ...TransactionCategories.expense,
-                          ].toSet().toList().map<DropdownMenuItem<String>>((category) {
-                            return DropdownMenuItem<String>(
-                              value: category.toLowerCase(),
-                              child: Text(
-                                category == 'all' ? 'All Categories' : category,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _categoryFilter = value;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                }
-              },
-            ),
-          ],
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      child: Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: isSmallScreen
+              ? _buildMobileFilters()
+              : _buildDesktopFilters(),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileFilters() {
+    return Column(
+      children: [
+        // Search Field
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Search transactions...',
+            prefixIcon: const Icon(Icons.search),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          onChanged: (_) {},
+        ),
+        const SizedBox(height: 12),
+        // Type Filter
+        DropdownButtonFormField<String>(
+          value: _typeFilter,
+          decoration: InputDecoration(
+            labelText: 'Type',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          ),
+          isExpanded: true,
+          items: [
+            'all',
+            'income',
+            'expense',
+          ].map<DropdownMenuItem<String>>((type) {
+            return DropdownMenuItem(
+              value: type,
+              child: Text(
+                type == 'all' ? 'All Types' : '${type[0].toUpperCase()}${type.substring(1)}',
+              ),
+            );
+          }).toList(),
+          onChanged: _handleTypeFilterChanged,
+        ),
+        const SizedBox(height: 12),
+        // Category Filter
+        DropdownButtonFormField<String>(
+          value: _categoryFilter,
+          decoration: InputDecoration(
+            labelText: 'Category',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          ),
+          isExpanded: true,
+          items: _categories.map<DropdownMenuItem<String>>((category) {
+            return DropdownMenuItem<String>(
+              value: category.toLowerCase(),
+              child: Text(
+                category == 'all' ? 'All Categories' : category,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: _handleCategoryChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopFilters() {
+    return Row(
+      children: [
+        // Search Field
+        Expanded(
+          flex: 3,
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search transactions...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onChanged: (_) {},
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Type Filter
+        Expanded(
+          flex: 2,
+          child: DropdownButtonFormField<String>(
+            value: _typeFilter,
+            decoration: InputDecoration(
+              labelText: 'Type',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            ),
+            isExpanded: true,
+            items: [
+              'all',
+              'income',
+              'expense',
+            ].map<DropdownMenuItem<String>>((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Text(
+                  type == 'all' ? 'All Types' : '${type[0].toUpperCase()}${type.substring(1)}',
+                ),
+              );
+            }).toList(),
+            onChanged: _handleTypeFilterChanged,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Category Filter
+        Expanded(
+          flex: 3,
+          child: DropdownButtonFormField<String>(
+            value: _categoryFilter,
+            decoration: InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            ),
+            isExpanded: true,
+            items: _categories.map<DropdownMenuItem<String>>((category) {
+              return DropdownMenuItem<String>(
+                value: category.toLowerCase(),
+                child: Text(
+                  category == 'all' ? 'All Categories' : category,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: _handleCategoryChanged,
+          ),
+        ),
+      ],
     );
   }
 
@@ -536,10 +691,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     TextTheme textTheme,
     ColorScheme colorScheme,
   ) {
-    final transactions = _filteredTransactions;
-    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    if (transactions.isEmpty) {
+    final filteredTransactions = _filteredTransactions;
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+    
+    if (filteredTransactions.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -547,26 +706,47 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             Icon(
               Icons.receipt_long_outlined,
               size: 64,
-              color: theme.disabledColor,
+              color: theme.hintColor,
             ),
             const SizedBox(height: 16),
             Text(
-              'No transactions found',
+              _searchController.text.isNotEmpty || _typeFilter != 'all' || _categoryFilter != 'all'
+                  ? 'No matching transactions found'
+                  : 'No transactions found',
               style: textTheme.titleMedium?.copyWith(
-                color: theme.disabledColor,
+                color: theme.hintColor,
               ),
             ),
+            const SizedBox(height: 8),
+            if (_searchController.text.isNotEmpty || _typeFilter != 'all' || _categoryFilter != 'all')
+              TextButton(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {
+                    _typeFilter = 'all';
+                    _categoryFilter = 'all';
+                  });
+                },
+                child: const Text('Clear filters'),
+              )
+            else
+              Text(
+                'Add a new transaction to get started',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.hintColor,
+                ),
+              ),
           ],
         ),
       );
     }
-
+    
     return ListView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: transactions.length,
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: filteredTransactions.length,
       itemBuilder: (context, index) {
-        final transaction = transactions[index];
+        final transaction = filteredTransactions[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: InkWell(
@@ -575,8 +755,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: isSmallScreen
-                  ? _buildMobileTransactionItem(transaction, Theme.of(context), Theme.of(context).textTheme)
-                  : _buildDesktopTransactionItem(transaction, Theme.of(context), Theme.of(context).textTheme),
+                  ? _buildMobileTransactionItem(transaction, theme, textTheme)
+                  : _buildDesktopTransactionItem(transaction, theme, textTheme),
             ),
           ),
         );

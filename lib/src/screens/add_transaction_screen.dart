@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/transaction_model.dart';
+import '../services/payment_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   static const routeName = '/add-transaction';
@@ -18,40 +20,59 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _descriptionController = TextEditingController();
   final _amountController = TextEditingController();
   final _dateController = TextEditingController();
-  final _patientNameController = TextEditingController();
+  final _patientIdController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _paymentMethodController = TextEditingController(text: 'cash');
+  final _referenceNumberController = TextEditingController();
   
   TransactionType _transactionType = TransactionType.expense;
+  bool _isLoading = false;
+  final PaymentService _paymentService = PaymentService();
+  final _storage = const FlutterSecureStorage();
   String _selectedCategory = 'Office Rent';
   
-  final List<Map<String, String>> _incomeCategories = [
-    {'value': 'Therapy Sessions', 'label': 'Therapy Sessions'},
-    {'value': 'Consultation', 'label': 'Consultation'},
-    {'value': 'Group Therapy', 'label': 'Group Therapy'},
-    {'value': 'Other Income', 'label': 'Other Income'},
-  ];
-
-  final List<Map<String, String>> _expenseCategories = [
-    {'value': 'Office Rent', 'label': 'Office Rent'},
-    {'value': 'Utilities', 'label': 'Utilities'},
-    {'value': 'Medical Supplies', 'label': 'Medical Supplies'},
-    {'value': 'Equipment', 'label': 'Equipment'},
-    {'value': 'Marketing', 'label': 'Marketing'},
-    {'value': 'Insurance', 'label': 'Insurance'},
-    {'value': 'Other Expenses', 'label': 'Other Expenses'},
-  ];
-
+  List<Map<String, dynamic>> _incomeCategories = [];
+  List<Map<String, dynamic>> _expenseCategories = [];
+  
   @override
   void initState() {
     super.initState();
     _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _loadCategories();
   }
+  
+  Future<void> _loadCategories() async {
+    // Using hardcoded expense categories
+    setState(() {
+      _expenseCategories = [
+        {'value': 'office_supplies', 'label': 'Office Supplies'},
+        {'value': 'utilities', 'label': 'Utilities'},
+        {'value': 'rent', 'label': 'Rent'},
+        {'value': 'transportation', 'label': 'Transportation'},
+        {'value': 'meals', 'label': 'Meals'},
+        {'value': 'equipment', 'label': 'Equipment'},
+        {'value': 'marketing', 'label': 'Marketing'},
+        {'value': 'other', 'label': 'Other Expenses'},
+      ];
+      
+      // Set default category
+      if (_expenseCategories.isNotEmpty) {
+        _selectedCategory = _expenseCategories[0]['value'] ?? '';
+      }
+    });
+  }
+
+
 
   @override
   void dispose() {
     _descriptionController.dispose();
     _amountController.dispose();
     _dateController.dispose();
-    _patientNameController.dispose();
+    _patientIdController.dispose();
+    _notesController.dispose();
+    _paymentMethodController.dispose();
+    _referenceNumberController.dispose();
     super.dispose();
   }
 
@@ -69,30 +90,71 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      // Create new transaction
-      final newTransaction = Transaction(
-        id: DateTime.now().toString(),
-        date: DateFormat('yyyy-MM-dd').parse(_dateController.text),
-        description: _descriptionController.text,
-        amount: double.parse(_amountController.text),
-        type: _transactionType,
-        category: _selectedCategory,
-        patientName: _patientNameController.text.isEmpty ? null : _patientNameController.text,
-      );
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate() && !_isLoading) {
+      setState(() {
+        _isLoading = true;
+      });
 
-      // In a real app, you would save the transaction to your backend here
-      // For now, we'll just print it and pop back
-      debugPrint('New transaction: ${newTransaction.toJson()}');
+      try {
+        final response = await _paymentService.createPayment(
+          type: _transactionType == TransactionType.income ? 'income' : 'expense',
+          amount: double.parse(_amountController.text),
+          description: _descriptionController.text,
+          category: _selectedCategory,
+          date: DateFormat('yyyy-MM-dd').parse(_dateController.text),
+          paymentMethod: _paymentMethodController.text,
+          referenceNumber: _referenceNumberController.text.isEmpty ? null : _referenceNumberController.text,
+          patientId: _patientIdController.text.isEmpty ? null : _patientIdController.text,
+          notes: _notesController.text.isEmpty ? null : _notesController.text,
+        );
+
+        if (!mounted) return;
       
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Transaction added successfully')),
-      );
-      
-      // Navigate back
-      Navigator.pop(context);
+      if (response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transaction added successfully')),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      } else if (response['unauthorized'] == true) {
+        // Handle unauthorized (token expired)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session expired. Please log in again.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        // Optionally navigate to login screen
+        // Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        // Show error message
+        String errorMessage = response['message'] ?? 'Failed to add transaction';
+        if (response['errors'] != null) {
+          // Format validation errors if available
+          final errors = response['errors'] as Map<String, dynamic>;
+          errorMessage = errors.entries
+              .map((e) => '${e.key}: ${e.value.join(', ')}')
+              .join('\n');
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }  
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred. Please try again.')),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -120,54 +182,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Transaction Type
-                Text(
-                  'Transaction Type',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF374151),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<TransactionType>(
-                        title: const Text('Income'),
-                        value: TransactionType.income,
-                        groupValue: _transactionType,
-                        onChanged: (TransactionType? value) {
-                          if (value != null) {
-                            setState(() {
-                              _transactionType = value;
-                              _selectedCategory = _incomeCategories[0]['value']!;
-                            });
-                          }
-                        },
-                        activeColor: const Color(0xFF10B981),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<TransactionType>(
-                        title: const Text('Expense'),
-                        value: TransactionType.expense,
-                        groupValue: _transactionType,
-                        onChanged: (TransactionType? value) {
-                          if (value != null) {
-                            setState(() {
-                              _transactionType = value;
-                              _selectedCategory = _expenseCategories[0]['value']!;
-                            });
-                          }
-                        },
-                        activeColor: const Color(0xFFEF4444),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ],
-                ),
+                // Transaction Type (hidden, default to expense)
+                // Hidden input to maintain form state
+                const SizedBox.shrink(),
                 const SizedBox(height: 24),
 
                 // Amount
@@ -254,48 +271,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 const SizedBox(height: 16),
 
                 // Category
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  items: (_transactionType == TransactionType.income
-                          ? _incomeCategories
-                          : _expenseCategories)
-                      .map<DropdownMenuItem<String>>((Map<String, String> category) {
-                    return DropdownMenuItem<String>(
-                      value: category['value'],
-                      child: Text(category['label']!),
-                    );
-                  }).toList(),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedCategory = newValue;
-                      });
-                    }
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF3B82F6)),
-                    ),
-                  ),
-                ),
-
-                // Patient Name (only for income)
-                if (_transactionType == TransactionType.income) ...[  
+                if (_expenseCategories.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _patientNameController,
+                  DropdownButtonFormField<String>(
+                    value: _selectedCategory,
                     decoration: InputDecoration(
-                      labelText: 'Patient Name (Optional)',
+                      labelText: 'Category',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
@@ -309,31 +290,65 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         borderSide: const BorderSide(color: Color(0xFF3B82F6)),
                       ),
                     ),
+                    items: _expenseCategories
+                        .map<DropdownMenuItem<String>>((Map<String, dynamic> category) {
+                      return DropdownMenuItem<String>(
+                        value: category['value']?.toString() ?? '',
+                        child: Text(category['label']?.toString() ?? ''),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedCategory = newValue;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please select a category';
+                      }
+                      return null;
+                    },
                   ),
+                ] else ...[
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
                 ],
 
                 const SizedBox(height: 32),
 
                 // Submit Button
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
                   child: ElevatedButton(
-                    onPressed: _submitForm,
+                    onPressed: _isLoading ? null : _submitForm,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF58C0F4),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      backgroundColor: const Color(0xFF3B82F6),
+                      disabledBackgroundColor: Colors.grey[400],
                     ),
-                    child: Text(
-                      'Save Transaction',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Add Expense',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ],
