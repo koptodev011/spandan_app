@@ -6,6 +6,7 @@ import 'src/screens/patients_screen.dart';
 import 'src/screens/appointment_manager_screen.dart';
 import 'src/screens/reports_screen.dart';
 import 'src/screens/transactions_screen.dart';
+import 'src/screens/completed_sessions_screen.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -57,6 +58,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/patients': (context) => const PatientsScreen(),
         '/appointments': (context) => const AppointmentManagerScreen(),
+        '/completed-sessions': (context) => CompletedSessionsScreen(onBack: () => Navigator.pop(context)),
         '/reports': (context) => const ReportsScreen(),
         '/transactions': (context) => const TransactionsScreen(),
       },

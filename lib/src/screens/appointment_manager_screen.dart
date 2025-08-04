@@ -10,6 +10,7 @@ import '../widgets/sidebar.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'add_appointment_screen.dart';
+import 'edit_appointment_screen.dart';
 
 class AppointmentManagerScreen extends StatefulWidget {
   const AppointmentManagerScreen({Key? key}) : super(key: key);
@@ -38,7 +39,7 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
     _fetchAppointments();
   }
   
-  Future<void> _fetchAppointments() async {
+  Future<void> _fetchAppointments([DateTime? date]) async {
     if (!mounted) return;
     
     setState(() {
@@ -50,9 +51,13 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
       final token = await AuthService.getToken();
       if (token == null) throw Exception('Authentication required');
       
-      // Make API call to fetch today's appointments
+      // Format the date as YYYY-MM-DD
+      final selectedDate = date ?? _selectedDay ?? DateTime.now();
+      final formattedDate = '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+      
+      // Make API call to fetch appointments for the selected date
       final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/appointments/today'),
+        Uri.parse('${ApiService.baseUrl}/appointments/by-date?date=$formattedDate'),
         headers: ApiService.getHeaders(token: token),
       );
       
@@ -131,9 +136,22 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
   }
 
   void _handleEditAppointment(Map<String, dynamic> appointment) {
-    // TODO: Implement edit functionality
-    // You can navigate to an edit screen or show a dialog
-    print('Edit appointment: $appointment');
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditAppointmentScreen(
+          appointment: appointment,
+          onUpdate: () {
+            // Refresh the appointments list after update
+            _fetchAppointments(_selectedDay);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Appointment updated successfully')),
+            );
+          },
+          onBack: () => Navigator.pop(context),
+        ),
+      ),
+    );
   }
 
   Future<void> _handleDeleteAppointment(int? appointmentId) async {
@@ -239,25 +257,13 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
           icon: const Icon(Icons.menu, color: Color(0xFF1A237E)),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Appointment Manager",
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A237E),
-              ),
-            ),
-            Text(
-              "Manage your appointments and schedule",
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: const Color(0xFF5C6BC0),
-              ),
-            ),
-          ],
+        title: Text(
+          'Appointment Manager',
+          style: GoogleFonts.inter(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
         ),
         centerTitle: false,
         backgroundColor: Colors.white,
@@ -296,6 +302,7 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
             
             // Calendar Card
             Card(
+              color: Colors.white,
               elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -326,7 +333,7 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
                             _selectedDay = selectedDay;
                             _focusedDay = focusedDay;
                           });
-                          _fetchAppointments();
+                          _fetchAppointments(selectedDay);
                         }
                       },
                       selectedDayPredicate: (day) {
@@ -396,32 +403,7 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Appointment Manager',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Manage your daily schedule and appointments',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildAppointmentsList() {
@@ -454,7 +436,9 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
         final type = appointment['appointment_type']?.toString() ?? '';
         
         return Card(
+          color: Colors.white,
           margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             title: Text(

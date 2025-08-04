@@ -360,37 +360,63 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
                 borderSide: BorderSide(color: Color(0xFFE0E0E0)),
               ),
               contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              isDense: true,
             ),
             isExpanded: true,
-            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 24),
             style: GoogleFonts.inter(
               fontSize: 14,
               color: Colors.black87,
+              height: 1.2,
             ),
+            selectedItemBuilder: (BuildContext context) {
+              return _patients.map<Widget>((patient) {
+                return Container(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    patient['full_name'] ?? 'Unnamed Patient',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                );
+              }).toList();
+            },
             dropdownColor: Colors.white,
             items: _patients.map<DropdownMenuItem<String>>((patient) {
               return DropdownMenuItem(
                 value: patient['id']?.toString(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      patient['full_name'] ?? 'Unnamed Patient',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (patient['phone'] != null)
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        patient['phone'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                        patient['full_name'] ?? 'Unnamed Patient',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                  ],
+                      if (patient['phone'] != null)
+                        Text(
+                          patient['phone'],
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
                 ),
               );
             }).toList(),

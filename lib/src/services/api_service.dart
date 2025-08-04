@@ -203,6 +203,96 @@ class ApiService {
     }
   }
 
+  // Update an existing appointment
+  static Future<Map<String, dynamic>> updateAppointment({
+    required int appointmentId,
+    required int patientId,
+    required String date,
+    required String time,
+    required String appointmentType,
+    required int durationMinutes,
+    String? note,
+    required String token,
+  }) async {
+    try {
+      // Create the request data
+      final Map<String, dynamic> appointmentData = {
+        'patient_id': patientId,
+        'date': date,
+        'time': time,
+        'appointment_type': appointmentType,
+        'duration_minutes': durationMinutes,
+        if (note != null && note.isNotEmpty) 'note': note,
+        '_method': 'PUT', // Laravel requires this for PUT requests with form data
+      };
+
+      // Remove _method from the request body as we're using PUT directly
+      appointmentData.remove('_method');
+      
+      // Log the full request details
+      print('=== Update Appointment Request ===');
+      print('URL: $baseUrl/appointments/$appointmentId');
+      print('Method: PUT');
+      print('Headers: ${getHeaders(token: token)}');
+      print('Body: ${jsonEncode(appointmentData)}');
+      print('=================================');
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/appointments/$appointmentId'),
+        headers: {
+          ...getHeaders(token: token),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(appointmentData),
+      );
+
+      print('=== Update Appointment Response ===');
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+      print('==================================');
+
+      return _handleResponse(response);
+    } catch (e) {
+      print('Error updating appointment: $e');
+      rethrow;
+    }
+  }
+
+  // Delete an appointment
+  static Future<Map<String, dynamic>> deleteAppointment({
+    required int appointmentId,
+    required String token,
+  }) async {
+    try {
+      // Log the request details
+      print('=== Delete Appointment Request ===');
+      print('URL: $baseUrl/appointments/$appointmentId');
+      print('Method: DELETE');
+      print('Headers: ${getHeaders(token: token)}');
+      print('=================================');
+      
+      final response = await http.delete(
+        Uri.parse('$baseUrl/appointments/$appointmentId'),
+        headers: {
+          ...getHeaders(token: token),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('=== Delete Appointment Response ===');
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+      print('==================================');
+
+      return _handleResponse(response);
+    } catch (e) {
+      print('Error deleting appointment: $e');
+      rethrow;
+    }
+  }
+
   // Complete a session with all details including file uploads
   static Future<Map<String, dynamic>> completeSession({
     required int sessionId,
