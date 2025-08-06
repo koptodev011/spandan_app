@@ -26,6 +26,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
   String _appointmentType = 'in-person';
   String _duration = '60';
   final TextEditingController _notesController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
 
   final List<Map<String, dynamic>> _patients = [];
   bool _isLoading = true;
@@ -106,6 +107,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
   @override
   void dispose() {
     _notesController.dispose();
+    _amountController.dispose();
     super.dispose();
   }
 
@@ -117,6 +119,9 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
         );
         return;
       }
+      
+      // Parse amount to double, default to 0 if empty
+      final amount = double.tryParse(_amountController.text) ?? 0.0;
 
       setState(() {
         _isLoading = true;
@@ -217,6 +222,10 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
               
               _buildSectionHeader('Duration (minutes)'),
               _buildDurationDropdown(),
+              const SizedBox(height: 16),
+              
+              _buildSectionHeader('Amount (₹)'),
+              _buildAmountField(),
               const SizedBox(height: 16),
               
               _buildSectionHeader('Notes (Optional)'),
@@ -532,6 +541,29 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
     );
   }
 
+  Widget _buildAmountField() {
+    return TextFormField(
+      controller: _amountController,
+      keyboardType: TextInputType.numberWithOptions(decimal: true),
+      decoration: _inputDecoration(
+        hintText: '0.00',
+      ),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Please enter an amount';
+        }
+        final amount = double.tryParse(value);
+        if (amount == null) {
+          return 'Please enter a valid amount';
+        }
+        if (amount < 0) {
+          return 'Amount cannot be negative';
+        }
+        return null;
+      },
+    );
+  }
+
   Widget _buildNotesField() {
     return TextFormField(
       controller: _notesController,
@@ -540,7 +572,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
     );
   }
 
-  InputDecoration _inputDecoration({String? hintText, IconData? suffixIcon}) {
+  InputDecoration _inputDecoration({String? hintText, IconData? suffixIcon, Widget? prefixIcon}) {
     return InputDecoration(
       hintText: hintText,
       border: OutlineInputBorder(
@@ -548,6 +580,7 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
         borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      prefixIcon: prefixIcon,
       suffixIcon: suffixIcon != null ? Icon(suffixIcon, color: const Color(0xFF5C6BC0)) : null,
     );
   }

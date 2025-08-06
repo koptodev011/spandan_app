@@ -8,7 +8,7 @@ import 'session_details_screen.dart';
 import 'patient_history_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/sidebar.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/session_card.dart';
 import 'add_patient_screen.dart';
 
@@ -28,6 +28,18 @@ class _PatientsScreenState extends State<PatientsScreen> {
   String? _errorMessage;
 
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  
+  List<Map<String, dynamic>> get _filteredSessions {
+    if (_searchQuery.isEmpty) return sessions;
+    
+    final query = _searchQuery.toLowerCase();
+    return sessions.where((session) {
+      return (session['patientName']?.toString().toLowerCase().contains(query) ?? false) ||
+             (session['sessionType']?.toString().toLowerCase().contains(query) ?? false) ||
+             (session['note']?.toString().toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -154,41 +166,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFFF5FAFE),
-      drawer: Sidebar(
-        selectedIndex: _selectedIndex,
-        onItemTapped: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-          // Close the drawer
-          Navigator.pop(context);
-          // Handle navigation to different screens based on index
-          switch (index) {
-            case 0:
-              // Navigate to Today's Sessions (PatientsScreen)
-              if (!mounted) return;
-              if (ModalRoute.of(context)?.settings.name != '/patients') {
-                Navigator.pushReplacementNamed(context, '/patients');
-              }
-              break;
-            case 1:
-              // Navigate to Appointments
-              if (!mounted) return;
-              if (ModalRoute.of(context)?.settings.name != '/appointments') {
-                Navigator.pushReplacementNamed(context, '/appointments');
-              }
-              break;
-            case 2:
-              // Navigate to Completed Sessions
-              // TODO: Implement CompletedSessionsScreen
-              break;
-            case 3:
-              // Navigate to Reports
-              // TODO: Implement ReportsScreen
-              break;
-          }
-        },
-      ),
+      drawer: const AppDrawer(),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Colors.black),
@@ -300,7 +278,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 ),
               ),
               onChanged: (value) {
-                // TODO: Implement search functionality
+                setState(() {
+                  _searchQuery = value.trim().toLowerCase();
+                });
               },
             ),
           ),
@@ -327,7 +307,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${sessions.length} sessions',
+                    '${_filteredSessions.length} of ${sessions.length} sessions',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -365,16 +345,21 @@ class _PatientsScreenState extends State<PatientsScreen> {
                         ),
                       )
                     : sessions.isEmpty
-                        ? const Center(
-                            child: Text('No sessions scheduled for today'),
+                        ? Center(
+                            child: Text(
+                              _searchQuery.isNotEmpty
+                                  ? 'No sessions found for "$_searchQuery"'
+                                  : 'No sessions scheduled for today',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
                           )
                         : RefreshIndicator(
                             onRefresh: _fetchTodaysSessions,
                             child: ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              itemCount: sessions.length,
+                              itemCount: _filteredSessions.length,
                               itemBuilder: (context, index) {
-                                final session = sessions[index];
+                                final session = _filteredSessions[index];
                                 return SessionCard(
                                   patientName: session['patientName'],
                                   age: session['age'],
