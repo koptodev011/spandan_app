@@ -81,28 +81,132 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   
   Future<void> _startRecording() async {
     try {
-      if (await _audioRecorder.hasPermission()) {
-        final directory = await getApplicationDocumentsDirectory();
-        final path = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        
-        await _audioRecorder.start(
-          RecordConfig(encoder: AudioEncoder.aacLc),
-          path: path,
-        );
-        
-        setState(() {
-          _isRecording = true;
-          _audioPath = path;
-          _recordDuration = Duration.zero;
-          _currentPosition = Duration.zero;
-        });
-        
-        // Update recording duration
-        _updateRecordDuration();
+      // Request microphone permission
+      if (!await _requestMicrophonePermission()) {
+        _showSnackBar('Microphone permission is required to record voice notes');
+        return;
       }
+
+      // Generate a unique filename with timestamp and patient ID
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final patientId = widget.patient['id']?.toString() ?? 'unknown';
+      final filename = 'voice_note_${patientId}_$timestamp.m4a';
+      
+      String path;
+      
+      if (_isWeb()) {
+        // For web, we'll use a temporary path
+        path = 'voice_notes/$filename';
+        debugPrint('Web recording path: $path');
+        _showSnackBar('Recording will be saved in browser storage');
+      } else {
+        try {
+          // Get the current working directory
+          final currentDir = Directory.current.path;
+          debugPrint('Current directory: $currentDir');
+          
+          // Go up one level from 'lib' to get project root
+          final projectRoot = currentDir.replaceAll(RegExp(r'[\\/]lib.*'), '');
+          debugPrint('Project root: $projectRoot');
+          
+          // Create recordings directory
+          final recordingsDir = Directory('$projectRoot/recordings');
+          debugPrint('Recordings directory path: ${recordingsDir.path}');
+          
+          // Create directory if it doesn't exist
+          if (!await recordingsDir.exists()) {
+            debugPrint('Creating recordings directory...');
+            await recordingsDir.create(recursive: true);
+            debugPrint('Directory created successfully');
+          }
+          
+          // Verify directory exists
+          final dirExists = await recordingsDir.exists();
+          debugPrint('Directory exists after creation: $dirExists');
+          
+          if (!dirExists) {
+            throw Exception('Failed to create recordings directory');
+          }
+          
+          // Set the full file path
+          path = '${recordingsDir.path}/$filename';
+          final fullPath = path.replaceAll('\\', '/');
+          
+          debugPrint('Audio will be saved to: $fullPath');
+          _showSnackBar('Audio will be saved to: $fullPath');
+        } catch (e) {
+          debugPrint('Error setting up recordings directory: $e');
+          // Fallback to temporary directory if there's an error
+          final tempDir = await getTemporaryDirectory();
+          path = '${tempDir.path}/$filename';
+          _showSnackBar('Using temporary directory: $path');
+        }
+      }
+      
+      // Start recording
+      await _audioRecorder.start(
+        RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000, // 128 kbps
+          sampleRate: 44100, // 44.1 kHz
+        ),
+        path: path,
+      );
+      
+      setState(() {
+        _isRecording = true;
+        _audioPath = path;
+        _recordDuration = Duration.zero;
+        _currentPosition = Duration.zero;
+      });
+      
+      // Update recording duration
+      _updateRecordDuration();
+      
+      _showSnackBar('Recording started');
     } catch (e) {
       debugPrint('Error starting recording: $e');
-      _showSnackBar('Failed to start recording');
+      _showSnackBar('Failed to start recording: ${e.toString()}');
+    }
+  }
+  
+  // Check if the platform is web
+  bool _isWeb() {
+    return identical(0, 0.0); // A simple way to detect web platform
+  }
+  
+  // Request microphone permission
+  Future<bool> _requestMicrophonePermission() async {
+    try {
+      if (_isWeb()) {
+        // On web, we just return true as the browser will handle the permission
+        return true;
+      }
+      
+      final status = await Permission.microphone.status;
+      if (status.isGranted) return true;
+      
+      final result = await Permission.microphone.request();
+      return result.isGranted;
+    } catch (e) {
+      debugPrint('Error requesting microphone permission: $e');
+      return false;
+    }
+  }
+  
+  // Request storage permission (mobile only)
+  Future<bool> _requestStoragePermission() async {
+    try {
+      if (_isWeb()) return true; // Not needed on web
+      
+      final status = await Permission.storage.status;
+      if (status.isGranted) return true;
+      
+      final result = await Permission.storage.request();
+      return result.isGranted;
+    } catch (e) {
+      debugPrint('Error requesting storage permission: $e');
+      return false;
     }
   }
   
@@ -119,13 +223,35 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   
   Future<void> _stopRecording() async {
     try {
-      await _audioRecorder.stop();
-      setState(() {
-        _isRecording = false;
-      });
+      // Stop the recording and get the file path
+      final path = await _audioRecorder.stop();
+      
+      if (path != null) {
+        if (!_isWeb()) {
+          // For mobile, get file size using File API
+          try {
+            final file = File(path);
+            final fileSize = await file.length();
+            _showSnackBar('Recording saved: ${_formatFileSize(fileSize)}');
+          } catch (e) {
+            debugPrint('Error getting file size: $e');
+            _showSnackBar('Recording saved');
+          }
+        } else {
+          // For web, we don't need to access the file system
+          _showSnackBar('Recording saved');
+        }
+        
+        setState(() {
+          _isRecording = false;
+          _audioPath = path;
+        });
+      } else {
+        _showSnackBar('No recording data to save');
+      }
     } catch (e) {
       debugPrint('Error stopping recording: $e');
-      _showSnackBar('Failed to stop recording');
+      _showSnackBar('Failed to stop recording: ${e.toString()}');
     }
   }
   
@@ -133,7 +259,14 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
     if (_audioPath == null) return;
     
     try {
-      await _audioPlayer.setFilePath(_audioPath!);
+      if (_isWeb()) {
+        // For web, use setUrl instead of setFilePath
+        await _audioPlayer.setUrl(_audioPath!);
+      } else {
+        // For mobile, use setFilePath
+        await _audioPlayer.setFilePath(_audioPath!);
+      }
+      
       await _audioPlayer.play();
       
       setState(() {
@@ -142,10 +275,12 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       
       _audioPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          setState(() {
-            _isPlaying = false;
-            _currentPosition = Duration.zero;
-          });
+          if (mounted) {
+            setState(() {
+              _isPlaying = false;
+              _currentPosition = Duration.zero;
+            });
+          }
         }
       });
       
@@ -159,7 +294,14 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       
     } catch (e) {
       debugPrint('Error playing recording: $e');
-      _showSnackBar('Failed to play recording');
+      _showSnackBar('Failed to play recording: ${e.toString()}');
+      
+      // Reset playback state on error
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+      }
     }
   }
   
@@ -873,14 +1015,76 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Instructions
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 20, color: Color(0xFF4F46E5)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Tap the record button to start a new voice note. Tap again to stop.',
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF4B5563),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
                 // Recording indicator and controls
                 if (_isRecording || _audioPath != null)
                   _buildRecordingControls(),
-                  
-                // Record button
-                if (!_isRecording && _audioPath == null)
-                  _buildRecordButton(),
-                  
+                
+                // Record button (centered)
+                Center(
+                  child: _isRecording || _audioPath != null 
+                      ? const SizedBox.shrink() 
+                      : _buildRecordButton(),
+                ),
+                
+                // File info when recording exists
+                if (_audioPath != null && !_isRecording)
+                  Container(
+                    margin: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recording saved:',
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF4B5563),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _audioPath!.split('/').last,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: const Color(0xFF6B7280),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                
                 // Transcription area (placeholder for now)
                 const SizedBox(height: 24),
                 Text(
@@ -938,6 +1142,19 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
             color: const Color(0xFF111827),
           ),
         ),
+        if (_audioPath != null && !_isRecording) ...[
+          const SizedBox(height: 8),
+          Text(
+            'File: ${_getDisplayPath(_audioPath!)}',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: const Color(0xFF6B7280),
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
         const SizedBox(height: 16),
         
         // Play/Pause/Stop buttons
@@ -1000,9 +1217,34 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    
+    if (hours > 0) {
+      return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
+    } else {
+      return '${twoDigits(minutes)}:${twoDigits(seconds)}';
+    }
+  }
+  
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  
+  String _getDisplayPath(String path) {
+    if (_isWeb()) {
+      return 'Browser Storage: ${path.split('/').last}';
+    }
+    
+    // For mobile, show a shorter path
+    final parts = path.split('app_flutter');
+    if (parts.length > 1) {
+      return '.../app_flutter${parts[1]}';
+    }
+    return path;
   }
   
   Widget _buildSectionTemplate({

@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../models/appointment.dart';
 import '../widgets/appointment_card.dart';
-import '../widgets/sidebar.dart';
+import '../widgets/app_drawer.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'add_appointment_screen.dart';
@@ -248,10 +248,7 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      drawer: Sidebar(
-        selectedIndex: 1, // Highlight the Appointments tab
-        onItemTapped: _onItemTapped,
-      ),
+      drawer: const AppDrawer(),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.menu, color: Color(0xFF1A237E)),

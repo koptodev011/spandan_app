@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../screens/login_screen.dart';
+import '../screens/transactions_screen.dart';
 import '../services/auth_service.dart';
 
 class AppDrawer extends StatelessWidget {

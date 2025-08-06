@@ -466,8 +466,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }) {
     // Safely format the amount
     final formattedAmount = amount.isFinite 
-        ? '\$${amount.toStringAsFixed(2)}' 
-        : '\$0.00';
+        ? '₹${amount.toStringAsFixed(2)}' 
+        : '₹0.00';
+    
+    // Use a default icon if the provided icon is null
+    final displayIcon = icon != null ? icon : Icons.attach_money;
         
     return Container(
       width: 280,
@@ -490,7 +493,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   color: bgColor,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Builder(
+                  builder: (context) {
+                    try {
+                      return Icon(displayIcon, color: color, size: 20);
+                    } catch (e) {
+                      // Fallback to a default icon if there's any error rendering the icon
+                      return const Icon(Icons.attach_money, color: Colors.grey, size: 20);
+                    }
+                  },
+                ),
               ),
               const SizedBox(width: 12),
               Column(
@@ -794,7 +806,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '\$${txn.amount.toStringAsFixed(0)}',
+                '₹${txn.amount.toStringAsFixed(0)}',
                 style: textTheme.bodyMedium?.copyWith(
                   color: txn.type == TransactionType.income
                       ? Colors.green
@@ -932,7 +944,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         Expanded(
           flex: 1,
           child: Text(
-            '\$${txn.amount.toStringAsFixed(2)}',
+            '₹${txn.amount.toStringAsFixed(2)}',
             style: textTheme.titleMedium?.copyWith(
               color: txn.type == TransactionType.income
                   ? Colors.green

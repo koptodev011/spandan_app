@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/app_drawer.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -178,6 +179,137 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  // Show date range picker dialog
+  Future<void> _showDateRangePickerDialog() async {
+    DateTime tempStartDate = _startDate;
+    DateTime tempEndDate = _endDate;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Select Date Range'),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('From Date', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                              const SizedBox(height: 8),
+                              InkWell(
+                                onTap: () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: tempStartDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (date != null) {
+                                    setState(() => tempStartDate = date);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        DateFormat('MMM d, yyyy').format(tempStartDate),
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('To Date', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                              const SizedBox(height: 8),
+                              InkWell(
+                                onTap: () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: tempEndDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (date != null) {
+                                    setState(() => tempEndDate = date);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        DateFormat('MMM d, yyyy').format(tempEndDate),
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                      const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CANCEL'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _startDate = tempStartDate;
+                      _endDate = tempEndDate;
+                    });
+                    Navigator.pop(context);
+                    _loadReportData();
+                  },
+                  child: const Text('APPLY'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+
   // Build date range selector
   Widget _buildDateRangeSelector() {
     return Card(
@@ -193,7 +325,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           '${DateFormat('MMM d, yyyy').format(_startDate)} - ${DateFormat('MMM d, yyyy').format(_endDate)}',
         ),
         trailing: const Icon(Icons.arrow_drop_down),
-        onTap: _selectDateRange,
+        onTap: _showDateRangePickerDialog,
       ),
     );
   }
@@ -675,19 +807,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
             children: [
               _buildStatCard(
                 'Total Income',
-                '\$${double.parse(totalIncome.toString()).toStringAsFixed(2)}',
+                '₹${double.parse(totalIncome.toString()).toStringAsFixed(2)}',
                 Icons.arrow_upward,
                 Colors.green,
               ),
               _buildStatCard(
                 'Total Expenses',
-                '\$${double.parse(totalExpenses.toString()).toStringAsFixed(2)}',
+                '₹${double.parse(totalExpenses.toString()).toStringAsFixed(2)}',
                 Icons.arrow_downward,
                 Colors.red,
               ),
               _buildStatCard(
                 'Net Income',
-                '\$${double.parse(netIncome.toString()).toStringAsFixed(2)}',
+                '₹${double.parse(netIncome.toString()).toStringAsFixed(2)}',
                 netIncome >= 0 ? Icons.trending_up : Icons.trending_down,
                 netIncome >= 0 ? Colors.green : Colors.red,
               ),
@@ -767,7 +899,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
           trailing: Text(
-            '\$${amount.toStringAsFixed(2)}',
+            '₹${amount.toStringAsFixed(2)}',
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.bold,
@@ -983,12 +1115,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Icons.people,
                 Colors.blue,
               ),
-              _buildStatCard(
-                'New (6m)',
-                '${newPatientsLast6Months.values.fold(0, (sum, value) => sum + (value is int ? value : 0))}',
-                Icons.person_add,
-                Colors.green,
-              ),
               ...genderDistribution.entries.map((entry) => _buildStatCard(
                 entry.key.capitalize(),
                 '${entry.value}',
@@ -997,18 +1123,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               )).toList(),
             ],
           ),
-          const SizedBox(height: 24),
-          
-          // Age Distribution
-          const Text(
-            'Age Distribution',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
           const SizedBox(height: 16),
-          ...ageDistribution.entries.map((entry) => _buildAgeDistributionItem(entry.key, entry.value as int)),
           
           // Patients List
           if (patients.isNotEmpty) ...[
@@ -1108,20 +1223,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: Colors.blue.shade100,
-                  child: Text(
-                    patient['full_name']?.substring(0, 1).toUpperCase() ?? '?',
-                    style: const TextStyle(color: Colors.blue),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        patient['full_name'] ?? 'N/A',
+                        patient['name'] ?? 'N/A',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1213,15 +1320,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
+  // Add this key at the top of the _ReportsScreenState class
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  int _selectedIndex = 3; // Reports is at index 3 in the sidebar
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Reports'),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: _loadReportData,
             tooltip: 'Refresh',
           ),
