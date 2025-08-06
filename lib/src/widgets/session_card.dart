@@ -42,19 +42,32 @@ class SessionCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Patient Avatar
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: const Color(0xFFE6F7FF),
-                  child: Text(
-                    patientName[0],
-                    style: GoogleFonts.inter(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF5BBFF2),
-                    ),
-                  ),
-                ),
+                // Patient Avatar - Show image if available, otherwise show initial
+                imageUrl.isNotEmpty
+                    ? Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFE6F7FF),
+                          image: DecorationImage(
+                            image: NetworkImage(imageUrl),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    : CircleAvatar(
+                        radius: 30,
+                        backgroundColor: const Color(0xFFE6F7FF),
+                        child: Text(
+                          patientName.isNotEmpty ? patientName[0] : '?',
+                          style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF5BBFF2),
+                          ),
+                        ),
+                      ),
                 const SizedBox(width: 16),
                 // Patient Info
                 Expanded(

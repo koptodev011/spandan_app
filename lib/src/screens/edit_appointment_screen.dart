@@ -719,6 +719,11 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
   }
 
   Widget _buildAppointmentTypeToggle() {
+    // Set default to 'in_person' if current type is not valid
+    if (_appointmentType != 'in_person' && _appointmentType != 'remote') {
+      _appointmentType = 'in_person';
+    }
+    
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -728,24 +733,17 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
       child: Row(
         children: [
           _buildTypeButton(
-            icon: Icons.medical_services,
-            label: 'Consultation',
-            isSelected: _appointmentType == 'consultation',
-            onTap: () => setState(() => _appointmentType = 'consultation'),
+            icon: Icons.person,
+            label: 'In-person',
+            isSelected: _appointmentType == 'in_person',
+            onTap: () => setState(() => _appointmentType = 'in_person'),
           ),
           const SizedBox(width: 8),
           _buildTypeButton(
-            icon: Icons.medical_information,
-            label: 'Follow-up',
-            isSelected: _appointmentType == 'follow_up',
-            onTap: () => setState(() => _appointmentType = 'follow_up'),
-          ),
-          const SizedBox(width: 8),
-          _buildTypeButton(
-            icon: Icons.medication,
-            label: 'Treatment',
-            isSelected: _appointmentType == 'treatment',
-            onTap: () => setState(() => _appointmentType = 'treatment'),
+            icon: Icons.videocam,
+            label: 'Remote',
+            isSelected: _appointmentType == 'remote',
+            onTap: () => setState(() => _appointmentType = 'remote'),
           ),
         ],
       ),

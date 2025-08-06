@@ -8,6 +8,7 @@ import 'session_details_screen.dart';
 
 class StartSessionScreen extends StatefulWidget {
   final Map<String, dynamic> patient;
+  final Map<String, dynamic>? appointment;
   final VoidCallback onBack;
   final Function(dynamic) onStartSession;
 
@@ -16,6 +17,7 @@ class StartSessionScreen extends StatefulWidget {
     required this.patient,
     required this.onBack,
     required this.onStartSession,
+    this.appointment,
   }) : super(key: key);
 
   @override
@@ -37,6 +39,25 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
     {'value': 'assessment', 'label': 'Assessment'},
     {'value': 'other', 'label': 'Other'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize form fields with appointment data if available
+    if (widget.appointment != null) {
+      _sessionType = widget.appointment!['appointment_type'] ?? 'in-person';
+      _sessionDuration = widget.appointment!['duration_minutes']?.toString() ?? '60';
+      
+      // Check if the appointment note matches any of the purpose options
+      final note = widget.appointment!['note'] ?? '';
+      final matchingPurpose = _purposeOptions.firstWhere(
+        (option) => option['value'] == note || option['label'] == note,
+        orElse: () => {'value': 'other', 'label': 'Other'},
+      );
+      
+      _sessionPurpose = matchingPurpose['value'] as String;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,19 +161,35 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8EAF6),
-                    borderRadius: BorderRadius.circular(32),
-                  ),
-                  child: const Icon(
-                    Icons.person,
-                    size: 32,
-                    color: Color(0xFF58C0F4),
-                  ),
-                ),
+                // Display patient image if available, otherwise show default avatar
+                widget.patient['imageUrl'] != null && widget.patient['imageUrl'].isNotEmpty
+                    ? Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8EAF6),
+                          borderRadius: BorderRadius.circular(32),
+                          image: DecorationImage(
+                            image: NetworkImage(widget.patient['imageUrl']),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8EAF6),
+                          borderRadius: BorderRadius.circular(32),
+                        ),
+                        child: Icon(
+                          widget.patient['gender']?.toLowerCase() == 'female' 
+                              ? Icons.female 
+                              : Icons.male,
+                          size: 32,
+                          color: const Color(0xFF58C0F4),
+                        ),
+                      ),
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,7 +330,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-    color: isSelected ? const Color(0xFF58C0F4) : const Color(0xFF9E9E9E),
+                  color: isSelected ? const Color(0xFF58C0F4) : const Color(0xFF9E9E9E),
                   width: 2,
                 ),
               ),
@@ -551,7 +588,10 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
 
   // Method to create a new session via API
   Future<void> _createSession() async {
+    print('_createSession called');
+    
     if (_sessionPurpose.isEmpty) {
+      print('Error: Session purpose is empty');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a session purpose'),
@@ -566,32 +606,42 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
     });
 
     try {
+      print('Getting auth token...');
       // Get the authentication token using AuthService
       final token = await AuthService.getToken();
       
       if (token == null) {
+        print('Error: No auth token found');
         throw Exception('Please login again to continue');
       }
 
       final url = Uri.parse('http://localhost:8000/api/sessions');
+      print('API URL: $url');
       
       // Convert session type from kebab-case to snake_case
       final sessionType = _sessionType.replaceAll('-', '_');
+      print('Session type: $sessionType');
       
       // Debug print to check patient data
       print('Patient data: ${widget.patient}');
       
-      // Prepare the request body
+      // Prepare the request body with proper types
+      final patientId = int.tryParse((widget.patient['id'] ?? widget.patient['patient_id'])?.toString() ?? '0') ?? 0;
+      print('Patient ID: $patientId');
+      
+      if (patientId == 0) {
+        print('Error: Invalid patient ID');
+        throw Exception('Patient ID is missing or invalid');
+      }
+
       final requestBody = {
-        'patient_id': widget.patient['id']?.toString() ?? widget.patient['patient_id']?.toString(),
+        'patient_id': patientId,
         'session_type': sessionType,
         'expected_duration': int.tryParse(_sessionDuration) ?? 60,
         'purpose': _sessionPurpose,
       };
       
-      if (requestBody['patient_id'] == null) {
-        throw Exception('Patient ID is missing');
-      }
+      print('Request body: $requestBody');
 
       print('Sending request to: $url');
       print('Request headers: ${{

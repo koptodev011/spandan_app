@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../screens/login_screen.dart';
+import '../services/auth_service.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final currentRoute = ModalRoute.of(context)?.settings.name ?? '';
     return Drawer(
       width: 280,
       child: Column(
@@ -17,7 +20,7 @@ class AppDrawer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Aura Wellbeing',
+                  'Spandan',
                   style: GoogleFonts.inter(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -36,7 +39,7 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          
+
           // Menu Items
           Expanded(
             child: ListView(
@@ -46,54 +49,133 @@ class AppDrawer extends StatelessWidget {
                   context: context,
                   icon: Icons.people_outline,
                   label: "Today's Sessions",
-                  isSelected: false,
-                  onTap: () {},
+                  isSelected:
+                      currentRoute == '/patients' || currentRoute.isEmpty,
+                  onTap: () {
+                    if (currentRoute != '/patients') {
+                      Navigator.pushReplacementNamed(context, '/patients');
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.calendar_today_outlined,
                   label: "Appointments",
-                  isSelected: false,
-                  onTap: () {},
+                  isSelected: currentRoute == '/appointments',
+                  onTap: () {
+                    if (currentRoute != '/appointments') {
+                      Navigator.pushReplacementNamed(context, '/appointments');
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.history_outlined,
                   label: "Completed Sessions",
-                  isSelected: false,
-                  onTap: () {},
+                  isSelected: currentRoute == '/completed-sessions',
+                  onTap: () {
+                    if (currentRoute != '/completed-sessions') {
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/completed-sessions',
+                      );
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.bar_chart_outlined,
                   label: "Reports",
-                  isSelected: false,
+                  isSelected: currentRoute == '/reports',
                   onTap: () {
-                    Navigator.pushReplacementNamed(context, '/reports');
+                    if (currentRoute != '/reports') {
+                      Navigator.pushReplacementNamed(context, '/reports');
+                    } else {
+                      Navigator.pop(context);
+                    }
                   },
                 ),
                 _buildMenuItem(
                   context: context,
                   icon: Icons.receipt_long_outlined,
                   label: "Transactions",
-                  isSelected: false,
+                  isSelected: currentRoute == '/transactions',
                   onTap: () {
-                    Navigator.pushReplacementNamed(context, '/transactions');
+                    if (currentRoute != '/transactions') {
+                      Navigator.pushReplacementNamed(context, '/transactions');
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                const Divider(height: 32),
+                _buildMenuItem(
+                  context: context,
+                  icon: Icons.logout_rounded,
+                  label: "Logout",
+                  isSelected: false,
+                  onTap: () async {
+                    // Show confirmation dialog
+                    final shouldLogout = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(
+                          'Confirm Logout',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        ),
+                        content: Text(
+                          'Are you sure you want to logout?',
+                          style: GoogleFonts.inter(),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: Text('Cancel', style: GoogleFonts.inter()),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: Text(
+                              'Logout',
+                              style: GoogleFonts.inter(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (shouldLogout == true) {
+                      // Clear the auth token
+                      await AuthService.clearToken();
+
+                      // Navigate to login screen and remove all previous routes
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    }
                   },
                 ),
               ],
             ),
           ),
-          
+
           // Footer
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
               'v1.0.0',
-              style: TextStyle(
-                color: Color(0xFF9CA3AF),
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12),
             ),
           ),
         ],
@@ -121,9 +203,7 @@ class AppDrawer extends StatelessWidget {
         ),
       ),
       tileColor: isSelected ? const Color(0xFFEFF6FF) : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       onTap: onTap,
     );

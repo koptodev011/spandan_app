@@ -179,7 +179,6 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
     
     // Calculate total minutes from the statistics string (e.g., "2 hours 30 mins")
     final totalMinutes = _calculateTotalMinutes(stats.totalDuration);
-    final averageMood = stats.averageMood != 'N/A' ? double.tryParse(stats.averageMood) ?? 0.0 : 0.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5FAFE),
@@ -220,7 +219,7 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
               child: isTablet 
                 ? Column(
                     children: [
-                      // First row with 2 cards
+                      // Single row with 3 cards
                       Row(
                         children: [
                           Expanded(
@@ -237,22 +236,6 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
                               icon: Icons.medical_services_outlined,
                               title: 'Total Sessions',
                               value: '${stats.totalSessions}',
-                              isNumber: true,
-                              isTablet: true,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Second row with 2 cards
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildOverviewCard(
-                              icon: Icons.mood_outlined,
-                              title: 'Avg Mood',
-                              value: stats.averageMood,
-                              valueColor: averageMood > 0 ? _getMoodColor(averageMood.toDouble()) : null,
                               isNumber: true,
                               isTablet: true,
                             ),
@@ -284,15 +267,6 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
                         icon: Icons.medical_services_outlined,
                         title: 'Total Sessions',
                         value: '${stats.totalSessions}',
-                        isNumber: true,
-                        isTablet: false,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildOverviewCard(
-                        icon: Icons.mood_outlined,
-                        title: 'Avg Mood',
-                        value: stats.averageMood,
-                        valueColor: averageMood > 0 ? _getMoodColor(averageMood.toDouble()) : null,
                         isNumber: true,
                         isTablet: false,
                       ),
