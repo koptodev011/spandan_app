@@ -38,13 +38,13 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
+
       try {
         // For web, use localhost, for Android use 10.0.2.2
         final baseUrl = const bool.fromEnvironment('dart.library.js_util')
             ? 'http://localhost:8000'
             : 'http://10.0.2.2:8000';
-            
+
         final response = await http.post(
           Uri.parse('$baseUrl/api/login'),
           headers: {
@@ -59,29 +59,33 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (mounted) {
           setState(() => _isLoading = false);
-          
+
           print('Login response status: ${response.statusCode}');
           print('Response body: ${response.body}');
-          
+
           if (response.statusCode == 200) {
             // Successfully logged in
             final responseData = jsonDecode(response.body);
             print('Decoded response: $responseData'); // Debug print
-            
+
             // Check the structure of the response - token is in responseData['authorization']['token']
             final token = responseData['authorization']?['token'];
             print('Extracted token: $token'); // Debug print
-            
+
             if (token != null) {
               print('Saving token: $token');
               await AuthService.saveToken(token);
               final savedToken = await AuthService.getToken();
-              print('Token saved successfully: ${savedToken != null && savedToken.isNotEmpty}');
+              print(
+                'Token saved successfully: ${savedToken != null && savedToken.isNotEmpty}',
+              );
               print('Actual saved token: $savedToken');
             } else {
-              print('No token found in response. Available keys: ${responseData.keys}');
+              print(
+                'No token found in response. Available keys: ${responseData.keys}',
+              );
             }
-            
+
             // Navigate to Patients screen and remove all previous routes
             if (mounted) {
               Navigator.pushAndRemoveUntil(
@@ -118,10 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       labelText: label,
-      labelStyle: GoogleFonts.roboto(
-        color: textSecondary,
-        fontSize: 14,
-      ),
+      labelStyle: GoogleFonts.roboto(color: textSecondary, fontSize: 14),
       prefixIcon: Icon(prefixIcon, size: 20, color: textSecondary),
       suffixIcon: suffixIcon,
       errorText: errorText,
@@ -157,167 +158,184 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5FAFE),
       body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Card(
-              elevation: 2,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // For tablets, we'll use a larger max width
+            final maxWidth = constraints.maxWidth > 600 ? 500.0 : 400.0;
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: constraints.maxWidth > 600 ? 48.0 : 24.0,
+                vertical: constraints.maxWidth > 600 ? 32.0 : 24.0,
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Lock Icon in Circle
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.lock_outline_rounded,
-                          size: 28,
-                          color: primaryColor,
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 24),
-                  
-                      // Welcome Text
-                      Text(
-                        'Spandan',
-                        style: GoogleFonts.roboto(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: textPrimary,
-                          height: 1.3,
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 4),
-                      
-                      // Subtitle
-                      Text(
-                        'Sign in to continue',
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
-                          color: textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 32),
-                
-                      // Email Field
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        style: GoogleFonts.roboto(
-                          color: textPrimary,
-                          fontSize: 14,
-                        ),
-                        decoration: _buildInputDecoration(
-                          label: 'Email',
-                          prefixIcon: Icons.person_outline_rounded,
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your email';
-                          }
-                          if (!RegExp(r'^[^@]+@[^\s]+\.[^\s]+$').hasMatch(value)) {
-                            return 'Please enter a valid email';
-                          }
-                          return null;
-                        },
-                      ),
-                      
-                      const SizedBox(height: 20),
-                      
-                      // Password Field
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        style: GoogleFonts.roboto(
-                          color: textPrimary,
-                          fontSize: 14,
-                        ),
-                        decoration: _buildInputDecoration(
-                          label: 'Password',
-                          prefixIcon: Icons.lock_outline_rounded,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword 
-                                  ? Icons.visibility_off_rounded 
-                                  : Icons.visibility_rounded,
-                              size: 20,
-                              color: textSecondary,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Card(
+                  elevation: 2,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: constraints.maxWidth > 600 ? 48 : 32,
+                      vertical: constraints.maxWidth > 600 ? 48 : 40,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Lock Icon in Circle
+                          Container(
+                            width: constraints.maxWidth > 600 ? 80 : 64,
+                            height: constraints.maxWidth > 600 ? 80 : 64,
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
+                            child: Icon(
+                              Icons.lock_outline_rounded,
+                              size: constraints.maxWidth > 600 ? 36 : 28,
+                              color: primaryColor,
+                            ),
                           ),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your password';
-                          }
-                          if (value.length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Sign In Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            textStyle: GoogleFonts.roboto(
-                              fontSize: 15,
+
+                          const SizedBox(height: 24),
+
+                          // Welcome Text
+                          Text(
+                            'Spandan',
+                            style: GoogleFonts.roboto(
+                              fontSize: constraints.maxWidth > 600 ? 28 : 20,
                               fontWeight: FontWeight.w600,
+                              color: textPrimary,
+                              height: 1.3,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Subtitle
+                          Text(
+                            'Sign in to continue',
+                            style: GoogleFonts.roboto(
+                              fontSize: constraints.maxWidth > 600 ? 16 : 14,
+                              color: textSecondary,
                               height: 1.4,
                             ),
                           ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Sign In'),
-                        ),
+
+                          const SizedBox(height: 32),
+
+                          // Email Field
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            style: GoogleFonts.roboto(
+                              color: textPrimary,
+                              fontSize: 14,
+                            ),
+                            decoration: _buildInputDecoration(
+                              label: 'Email',
+                              prefixIcon: Icons.person_outline_rounded,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              if (!RegExp(
+                                r'^[^@]+@[^\s]+\.[^\s]+$',
+                              ).hasMatch(value)) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          // Password Field
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            style: GoogleFonts.roboto(
+                              color: textPrimary,
+                              fontSize: 14,
+                            ),
+                            decoration: _buildInputDecoration(
+                              label: 'Password',
+                              prefixIcon: Icons.lock_outline_rounded,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_rounded
+                                      : Icons.visibility_rounded,
+                                  size: 20,
+                                  color: textSecondary,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              if (value.length < 6) {
+                                return 'Password must be at least 6 characters';
+                              }
+                              return null;
+                            },
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Sign In Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                textStyle: GoogleFonts.roboto(
+                                  fontSize: constraints.maxWidth > 600
+                                      ? 16
+                                      : 15,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.4,
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Sign In'),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

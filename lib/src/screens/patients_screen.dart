@@ -53,9 +53,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
       final token = await AuthService.getToken();
       if (token == null) throw Exception('Authentication required');
 
-      // Fetch upcoming appointments instead of just today's
+      // Fetch today's appointments
       final response = await http.get(
-        Uri.parse('${ApiService.baseUrl}/appointments/upcoming'),
+        Uri.parse('${ApiService.baseUrl}/appointments/today'),
         headers: ApiService.getHeaders(token: token),
       );
 
@@ -498,33 +498,116 @@ class _PatientsScreenState extends State<PatientsScreen> {
     );
   }
 
-  void _startNewSession(BuildContext context, Map<String, dynamic> patient) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StartSessionScreen(
-          patient: patient,
-          onBack: () => Navigator.pop(context),
-          onStartSession: (sessionData) {
-            // Handle the started session data if needed
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Session started successfully'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    ).then((_) {
-      // This will be called when returning from the session screen
-      if (mounted) {
-        // Refresh the sessions list when returning
-        _fetchTodaysSessions();
+  Future<void> _startNewSession(BuildContext context, Map<String, dynamic> patient) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) throw Exception('Authentication required');
+
+      // Check if session can be started for this patient
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/appointments/todays-upcoming?patient_id=${patient['id']}'),
+        headers: ApiService.getHeaders(token: token),
+      );
+
+      if (!mounted) return;
+      
+      // Dismiss the loading dialog
+      Navigator.of(context).pop();
+
+      final responseData = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        if (responseData['status'] == 'success') {
+          // Navigate to StartSessionScreen if allowed
+          if (!mounted) return;
+          
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => StartSessionScreen(
+                patient: patient,
+                appointment: responseData['data'],
+                onBack: () => Navigator.pop(context),
+                onStartSession: (sessionData) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Session started successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ),
+          );
+
+          // Refresh the sessions list when returning
+          if (mounted) {
+            _fetchTodaysSessions();
+          }
+        } else if (responseData['status'] == 'pending') {
+          // Show message for pending appointments
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${responseData['message']} (Starts in ${responseData['starts_in'] ?? 'a while'})'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } else if (responseData['status'] == 'expired') {
+          // Show message for expired appointments
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(responseData['message'] ?? 'This appointment has expired'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          // Show generic error message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(responseData['message'] ?? 'Cannot start session'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        // Show error message from server
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Failed to start session'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Dismiss loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showStartSessionDialog(BuildContext context) {

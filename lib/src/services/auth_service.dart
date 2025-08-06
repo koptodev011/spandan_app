@@ -4,16 +4,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   static const _tokenKey = 'auth_token';
-  
+
   // Use secure storage for mobile and shared preferences for web
   static final _secureStorage = FlutterSecureStorage();
   static SharedPreferences? _prefs;
   static bool _isPrefsInitialized = false;
-  
+
   // Get shared preferences instance (lazy initialization for web)
   static Future<SharedPreferences?> get _preferences async {
     if (!kIsWeb) return null;
-    
+
     if (!_isPrefsInitialized) {
       try {
         _prefs = await SharedPreferences.getInstance();
@@ -24,7 +24,7 @@ class AuthService {
         }
       }
     }
-    
+
     return _prefs;
   }
 
@@ -41,6 +41,19 @@ class AuthService {
     }
   }
 
+  // Clear the authentication token
+  static Future<void> clearToken() async {
+    if (kIsWeb) {
+      final prefs = await _preferences;
+      await prefs?.remove(_tokenKey);
+    } else {
+      await _secureStorage.delete(key: _tokenKey);
+    }
+    if (kDebugMode) {
+      print('Token cleared');
+    }
+  }
+
   // Get the stored authentication token
   static Future<String?> getToken() async {
     try {
@@ -51,9 +64,11 @@ class AuthService {
       } else {
         token = await _secureStorage.read(key: _tokenKey);
       }
-      
+
       if (kDebugMode) {
-        print('Retrieved token: ${token != null ? '${token.substring(0, 10)}...' : 'null'}');
+        print(
+          'Retrieved token: ${token != null ? '${token.substring(0, 10)}...' : 'null'}',
+        );
       }
       return token;
     } catch (e) {
