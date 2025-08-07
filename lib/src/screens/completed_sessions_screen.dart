@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../services/patient_service.dart' as patient_service;
+import 'package:flutter_app/src/services/patient_service.dart';
 import '../models/patient_session_model.dart';
 import '../widgets/app_drawer.dart';
 
@@ -19,8 +19,8 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   
   // Patient dropdown related state
-  List<patient_service.Patient> _patients = [];
-  patient_service.Patient? _selectedPatient;
+  List<Patient> _patients = [];
+  Patient? _selectedPatient;
   bool _isLoadingPatients = false;
   
   // Sessions state
@@ -233,7 +233,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Patient Dropdown
-                        DropdownButtonFormField<patient_service.Patient>(
+                        DropdownButtonFormField<Patient>(
                           value: _selectedPatient,
                           decoration: InputDecoration(
                             labelText: 'Select Patient',
@@ -255,7 +255,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                           isExpanded: true,
                           hint: const Text('Select a patient...'),
                           items: _patients.map((patient) {
-                            return DropdownMenuItem<patient_service.Patient>(
+                            return DropdownMenuItem<Patient>(
                               value: patient,
                               child: Text(
                                 '${patient.fullName} (${patient.phone ?? 'No phone'})',
@@ -263,7 +263,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                               ),
                             );
                           }).toList(),
-                          onChanged: (patient_service.Patient? newValue) async {
+                          onChanged: (Patient? newValue) async {
                             setState(() {
                               _selectedPatient = newValue;
                               _sessions = [];
