@@ -36,7 +36,18 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     'appointmentTime': '',
     'appointmentType': 'in-person',
     'duration': '30',
+    'sessionPurpose': 'initial-consultation',
   };
+
+  final List<Map<String, String>> _purposeOptions = [
+    {'value': 'initial-consultation', 'label': 'Initial Consultation'},
+    {'value': 'follow-up', 'label': 'Follow-up Session'},
+    {'value': 'therapy', 'label': 'Therapy Session'},
+    {'value': 'medication-review', 'label': 'Medication Review'},
+    {'value': 'crisis-intervention', 'label': 'Crisis Intervention'},
+    {'value': 'assessment', 'label': 'Assessment'},
+    {'value': 'other', 'label': 'Other'},
+  ];
 
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
@@ -86,6 +97,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           'appointment_time': _formData['appointmentTime'],
           'appointment_type': _formData['appointmentType'] == 'in-person' ? 'in_person' : 'remote',
           'duration_minutes': int.parse(_formData['duration']),
+          'session_purpose': _formData['sessionPurpose'],
           'appointment_note': _formData['notes'],
         };
 
@@ -288,7 +300,14 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                           label: 'Phone *',
                           keyboardType: TextInputType.phone,
                           onSaved: (value) => _formData['phone'] = value,
-                          validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Phone number is required';
+                            final phoneRegex = RegExp(r'^[0-9]{10}$');
+                            if (!phoneRegex.hasMatch(value)) {
+                              return 'Please enter a valid 10-digit number';
+                            }
+                            return null;
+                          },
                         ),
                         _buildTextFormField(
                           label: 'Email',
@@ -296,8 +315,10 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                           onSaved: (value) => _formData['email'] = value,
                           validator: (value) {
                             if (value != null && value.isNotEmpty) {
-                              final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
-                              if (!emailRegex.hasMatch(value)) return 'Invalid email';
+                              final emailRegex = RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+');
+                              if (!emailRegex.hasMatch(value)) {
+                                return 'Please enter a valid email address';
+                              }
                             }
                             return null;
                           },
@@ -307,8 +328,17 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                           onSaved: (value) => _formData['address'] = value,
                         ),
                         _buildTextFormField(
-                          label: 'Emergency Contact',
+                          label: 'Emergency Contact *',
+                          keyboardType: TextInputType.phone,
                           onSaved: (value) => _formData['emergencyContact'] = value,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Emergency contact is required';
+                            final phoneRegex = RegExp(r'^[0-9]{10}$');
+                            if (!phoneRegex.hasMatch(value)) {
+                              return 'Please enter a valid 10-digit number';
+                            }
+                            return null;
+                          },
                         ),
                       ],
                     ),
@@ -628,6 +658,56 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
               color: Colors.black87,
             ),
           ),
+        ),
+        const SizedBox(height: 8),
+        // Session Purpose Dropdown
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Session Purpose *',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey[50],
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _formData['sessionPurpose'],
+                  isExpanded: true,
+                  icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF58C0F4)),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  items: _purposeOptions.map<DropdownMenuItem<String>>((option) {
+                    return DropdownMenuItem<String>(
+                      value: option['value'],
+                      child: Text(option['label']!),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _formData['sessionPurpose'] = value);
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ),
         Row(
           children: [

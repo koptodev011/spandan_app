@@ -512,15 +512,16 @@ class _PatientsScreenState extends State<PatientsScreen> {
       
       if (response.statusCode == 200) {
         if (responseData['status'] == 'success') {
-          // Navigate to StartSessionScreen if allowed
-          if (!mounted) return;
+          // Get the appointment data
+          final appointmentData = responseData['data'];
           
+          // Navigate to StartSessionScreen with appointment data
           await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => StartSessionScreen(
                 patient: patient,
-                appointment: responseData['data'],
+                appointment: appointmentData,
                 onBack: () => Navigator.pop(context),
                 onStartSession: (sessionData) {
                   if (mounted) {

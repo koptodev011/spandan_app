@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../screens/login_screen.dart';
-import '../screens/transactions_screen.dart';
+import '../screens/transactions_updated_screen.dart';
 import '../services/auth_service.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -106,10 +106,10 @@ class AppDrawer extends StatelessWidget {
                   context: context,
                   icon: Icons.receipt_long_outlined,
                   label: "Transactions",
-                  isSelected: currentRoute == '/transactions',
+                  isSelected: currentRoute == TransactionsUpdatedScreen.routeName,
                   onTap: () {
-                    if (currentRoute != '/transactions') {
-                      Navigator.pushReplacementNamed(context, '/transactions');
+                    if (currentRoute != TransactionsUpdatedScreen.routeName) {
+                      Navigator.pushReplacementNamed(context, TransactionsUpdatedScreen.routeName);
                     } else {
                       Navigator.pop(context);
                     }

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_app/src/models/patient_history_model.dart';
 import 'package:flutter_app/src/services/patient_service.dart';
 import 'package:flutter_app/src/services/auth_service.dart';
+import 'package:flutter_app/src/models/session_details_model.dart';
 
 class PatientHistoryScreen extends StatefulWidget {
   final Map<String, dynamic> patient;
@@ -28,7 +29,7 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _fetchPatientHistory();
   }
 
@@ -52,8 +53,8 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
         throw Exception('Authentication required');
       }
 
-      final patientId = int.tryParse(widget.patient['id']?.toString() ?? '');
-      if (patientId == null) {
+      final patientId = widget.patient['id']?.toString();
+      if (patientId == null || patientId.isEmpty) {
         throw Exception('Invalid patient ID');
       }
 
@@ -77,6 +78,215 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
         });
       }
     }
+  }
+
+  Future<void> _showSessionDetails(String sessionId) async {
+    if (!mounted) return;
+    
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final sessionDetails = await PatientService.getSessionDetails(sessionId);
+      
+      if (!mounted) return;
+      
+      // Close the loading dialog
+      Navigator.of(context).pop();
+      
+      // Show session details dialog
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Session Details',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildSectionTitle('Session Information'),
+                _buildInfoRow('Type', sessionDetails.data.sessionDetails.type),
+                _buildInfoRow('Status', sessionDetails.data.sessionDetails.status),
+                _buildInfoRow('Started', sessionDetails.data.sessionDetails.startedAt),
+                _buildInfoRow('Ended', sessionDetails.data.sessionDetails.endedAt),
+                _buildInfoRow('Duration', sessionDetails.data.sessionDetails.expectedDuration),
+                _buildInfoRow('Purpose', sessionDetails.data.sessionDetails.purpose),
+                
+                const SizedBox(height: 16),
+                _buildSectionTitle('Patient Information'),
+                _buildInfoRow('Name', sessionDetails.data.patient.name),
+                _buildInfoRow('Age', '${sessionDetails.data.patient.age} years'),
+                _buildInfoRow('Gender', sessionDetails.data.patient.gender),
+                _buildInfoRow('Phone', sessionDetails.data.patient.phone),
+                _buildInfoRow('Email', sessionDetails.data.patient.email),
+                
+                if (sessionDetails.data.notes.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildSectionTitle('Session Notes'),
+                  ...sessionDetails.data.notes.map((note) => _buildNoteSection(note)),
+                ],
+                
+                if (sessionDetails.data.medicines.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildSectionTitle('Medicines'),
+                  ...sessionDetails.data.medicines.map((medicine) => 
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        medicine.medicineNotes,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF3B82F6),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load session details: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Text(
+        title,
+        style: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          color: const Color(0xFF3B82F6),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value.isNotEmpty ? value : 'N/A',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.grey[900],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildNoteSection(Note note) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (note.physicalHealthNotes?.isNotEmpty ?? false) ...[
+          _buildNoteItem('Physical Health', note.physicalHealthNotes!),
+        ],
+        if (note.mentalHealthNotes?.isNotEmpty ?? false) ...[
+          _buildNoteItem('Mental Health', note.mentalHealthNotes!),
+        ],
+        if (note.clinicalNotes?.isNotEmpty ?? false) ...[
+          _buildNoteItem('Clinical Notes', note.clinicalNotes!),
+        ],
+        if (note.generalNotes?.isNotEmpty ?? false) ...[
+          _buildNoteItem('General Notes', note.generalNotes!),
+        ],
+        if (note.moodRating != null) ...[
+          _buildNoteItem('Mood Rating', '${note.moodRating!}/10'),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          'Added on: ${note.createdAt}',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        const Divider(height: 24),
+      ],
+    );
+  }
+  
+  Widget _buildNoteItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$label:',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[800],
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -297,7 +507,6 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
               ),
               tabs: const [
                 Tab(text: 'Session History'),
-                Tab(text: 'Progress Overview'),
               ],
             ),
           ),
@@ -336,24 +545,11 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
                         ],
                       ),
                       const SizedBox(height: 16),
-                      ...sessionHistory.map((session) => _buildSessionCard({
-                        'id': session.id,
-                        'date': session.date,
-                        'time': session.time,
-                        'duration': session.duration,
-                        'type': session.type,
-                        'status': session.status,
-                        'notes': session.notes,
-                        'sessionNotes': session.sessionNotes,
-                        'mood': session.mood,
-                      })),
+                      ...sessionHistory.map((session) => _buildSessionCard(session)),
                     ],
                   ),
                 ),
-                // Progress Overview Tab (Placeholder for now)
-                const Center(
-                  child: Text('Progress Overview content will be implemented here'),
-                ),
+
               ],
             ),
           ),
@@ -447,202 +643,145 @@ class _PatientHistoryScreenState extends State<PatientHistoryScreen> with Single
     }
   }
 
-  Widget _buildSessionCard(Map<String, dynamic> session) {
-    final sessionType = session['type']?.toString().toLowerCase() ?? 'remote';
-    final duration = _formatDuration(session['duration']?.toString() ?? '0 mins');
-    final date = DateTime.parse(session['date']);
-    final time = session['time'] ?? '10:00 AM';
-    final notes = session['notes'] ?? 'No session notes available.';
-    final clinicalNotes = session['clinical_notes'] ?? 'No clinical notes available.';
-    final status = session['status']?.toString().toLowerCase() ?? 'completed';
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Date and Status row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormat('EEEE, MMMM d, yyyy').format(date),
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _getStatusColor(status),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Mood indicator row
-            Row(
-              children: [
-                Text(
-                  'Mood: ',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-                Text(
-                  '${_parseMoodValue(session['mood'])}/10',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _getMoodColor(_parseMoodValue(session['mood']).toDouble()),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // Time and Duration row
-            Row(
-              children: [
-                _buildSessionInfo(Icons.access_time, '$time ($duration)'),
-                const SizedBox(width: 16),
-                _buildSessionInfo(
-                  sessionType == 'remote' ? Icons.videocam_outlined : Icons.location_on_outlined,
-                  sessionType == 'remote' ? 'Remote' : 'In-Person',
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Session Notes
-            Text(
-              'Session Notes:',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1E293B),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              notes,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: const Color(0xFF64748B),
-                height: 1.5,
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Clinical Notes in a highlighted box
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSessionCard(SessionHistory session) {
+    try {
+      final sessionType = session.type?.toLowerCase() ?? 'remote';
+      final duration = _formatDuration(session.duration ?? '0 mins');
+      final date = session.date != null && session.date!.isNotEmpty 
+          ? DateTime.parse(session.date!) 
+          : DateTime.now();
+      final time = session.time ?? '10:00 AM';
+      final status = session.status?.toLowerCase() ?? 'completed';
+      final sessionId = session.id.toString(); // Ensure ID is treated as string
+      
+      return Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        elevation: 0,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade200),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Date and Status row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Clinical Notes:',
+                    DateFormat('EEEE, MMMM d, yyyy').format(date),
                     style: GoogleFonts.inter(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF1E293B),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    clinicalNotes,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: const Color(0xFF475569),
-                      height: 1.5,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(status).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      status.toUpperCase(),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _getStatusColor(status),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton(
-                  onPressed: () {
-                    // Handle View Details
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    side: BorderSide(color: Theme.of(context).primaryColor),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'View Details',
+              
+              const SizedBox(height: 12),
+              
+              // Mood indicator row
+              if (session.mood != null) Row(
+                children: [
+                  Text(
+                    'Mood: ',
                     style: GoogleFonts.inter(
-                      color: Theme.of(context).primaryColor,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      color: const Color(0xFF64748B),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    // Handle Export Notes
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'Export Notes',
+                  Text(
+                    '${_parseMoodValue(session.mood)}/10',
                     style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _getMoodColor(_parseMoodValue(session.mood).toDouble()),
                     ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Time and Duration row
+              Row(
+                children: [
+                  _buildSessionInfo(Icons.access_time, '$time ($duration)'),
+                  const SizedBox(width: 16),
+                  _buildSessionInfo(
+                    sessionType == 'remote' ? Icons.videocam_outlined : Icons.location_on_outlined,
+                    sessionType == 'remote' ? 'Remote' : 'In-Person',
+                  ),
+                ],
+              ),
+              
+              // Notes preview if available
+              if (session.notes?.isNotEmpty == true || session.sessionNotes?.isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                Text(
+                  session.notes ?? session.sessionNotes ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
-            ),
-          ],
+              
+              const SizedBox(height: 16),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => _showSessionDetails(sessionId),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      side: BorderSide(color: Theme.of(context).primaryColor),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'View Details',
+                      style: GoogleFonts.inter(
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint('Error building session card: $e');
+      return const SizedBox.shrink(); // Return empty widget on error
+    }
   }
 
   Widget _buildSessionInfo(IconData icon, String text) {

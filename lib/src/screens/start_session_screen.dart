@@ -45,17 +45,26 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
     super.initState();
     // Initialize form fields with appointment data if available
     if (widget.appointment != null) {
-      _sessionType = widget.appointment!['appointment_type'] ?? 'in-person';
+      // Set session type (convert from snake_case to kebab-case if needed)
+      _sessionType = (widget.appointment!['appointment_type'] ?? 'in-person')
+          .toString()
+          .replaceAll('_', '-');
+          
+      // Set session duration
       _sessionDuration = widget.appointment!['duration_minutes']?.toString() ?? '60';
       
-      // Check if the appointment note matches any of the purpose options
-      final note = widget.appointment!['note'] ?? '';
-      final matchingPurpose = _purposeOptions.firstWhere(
-        (option) => option['value'] == note || option['label'] == note,
-        orElse: () => {'value': 'other', 'label': 'Other'},
-      );
-      
-      _sessionPurpose = matchingPurpose['value'] as String;
+      // Set session purpose from appointment data
+      if (widget.appointment!['session_purpose'] != null) {
+        _sessionPurpose = widget.appointment!['session_purpose'].toString();
+      } else {
+        // Fallback to note if session_purpose is not available
+        final note = widget.appointment!['note']?.toString() ?? '';
+        final matchingPurpose = _purposeOptions.firstWhere(
+          (option) => option['value'] == note || option['label'] == note,
+          orElse: () => {'value': 'other', 'label': 'Other'},
+        );
+        _sessionPurpose = matchingPurpose['value'] as String;
+      }
     }
   }
 
@@ -231,6 +240,11 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Appointment Details Section
+            if (widget.appointment != null) ..._buildAppointmentDetails(),
+            
+            if (widget.appointment != null) const SizedBox(height: 24),
+            
             // Session Type
             _buildSectionHeader('Session Type *', Icons.calendar_today),
             const SizedBox(height: 12),
@@ -252,6 +266,184 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
             // Remote Session Note
             if (_sessionType == 'remote') _buildRemoteSessionNote(),
           ],
+        ),
+      ),
+    );
+  }
+  
+  // Build the appointment details section
+  List<Widget> _buildAppointmentDetails() {
+    final appointment = widget.appointment!;
+    DateTime? appointmentTime;
+    
+    try {
+      if (appointment['time'] != null) {
+        appointmentTime = DateTime.parse(appointment['time']);
+      }
+    } catch (e) {
+      debugPrint('Error parsing appointment time: $e');
+    }
+    
+    return [
+      // Section Header
+      Row(
+        children: [
+          const Icon(Icons.event_available, size: 24, color: Color(0xFF58C0F4)),
+          const SizedBox(width: 8),
+          Text(
+            'Appointment Details',
+            style: GoogleFonts.inter(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      
+      // Appointment Date & Time
+      if (appointmentTime != null) ...[
+        _buildDetailRow(
+          'Date', 
+          DateFormat('EEEE, MMMM d, y').format(appointmentTime),
+          Icons.calendar_today,
+        ),
+        const SizedBox(height: 8),
+        _buildDetailRow(
+          'Time', 
+          DateFormat('h:mm a').format(appointmentTime),
+          Icons.access_time,
+        ),
+      ],
+      
+      // Appointment Type
+      if (appointment['appointment_type'] != null) ...[
+        const SizedBox(height: 8),
+        _buildDetailRow(
+          'Type', 
+          '${appointment['appointment_type'].toString().split('_').map((s) => s[0].toUpperCase() + s.substring(1)).join(' ')}',
+          Icons.category,
+        ),
+      ],
+      
+      // Session Purpose
+      if (appointment['session_purpose'] != null) ...[
+        const SizedBox(height: 8),
+        _buildDetailRow(
+          'Session Purpose',
+          _purposeOptions.firstWhere(
+            (option) => option['value'] == appointment['session_purpose'],
+            orElse: () => {'label': 'Other'},
+          )['label'],
+          Icons.assignment,
+        ),
+      ],
+      
+      // Duration
+      if (appointment['duration_minutes'] != null) ...[
+        const SizedBox(height: 8),
+        _buildDetailRow(
+          'Duration', 
+          '${appointment['duration_minutes']} minutes',
+          Icons.timer,
+        ),
+      ],
+      
+      // Notes
+      if (appointment['note'] != null && appointment['note'].toString().isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _buildDetailRow(
+          'Notes', 
+          appointment['note'].toString(),
+          Icons.notes,
+          maxLines: 3,
+        ),
+      ],
+      
+      // Status
+      if (appointment['status'] != null) ...[
+        const SizedBox(height: 8),
+        _buildStatusChip(appointment['status']),
+      ],
+    ];
+  }
+  
+  // Build a detail row with icon and text
+  Widget _buildDetailRow(String label, String value, IconData icon, {int maxLines = 1}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: Colors.grey[600]),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Build a status chip
+  Widget _buildStatusChip(String status) {
+    Color backgroundColor;
+    Color textColor;
+    String displayStatus = status.replaceAll('_', ' ').toLowerCase();
+    displayStatus = displayStatus[0].toUpperCase() + displayStatus.substring(1);
+    
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        backgroundColor = const Color(0xFFE8F5E9);
+        textColor = const Color(0xFF2E7D32);
+        break;
+      case 'completed':
+        backgroundColor = const Color(0xFFE3F2FD);
+        textColor = const Color(0xFF1565C0);
+        break;
+      case 'cancelled':
+        backgroundColor = const Color(0xFFFFEBEE);
+        textColor = const Color(0xFFC62828);
+        break;
+      case 'pending':
+      default:
+        backgroundColor = const Color(0xFFFFF8E1);
+        textColor = const Color(0xFFF57F17);
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        displayStatus,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: textColor,
         ),
       ),
     );

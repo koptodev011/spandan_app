@@ -74,6 +74,7 @@ class ApiService {
     required String time,
     required String appointmentType,
     required int durationMinutes,
+    String? sessionPurpose,
     String? note,
     required String token,
   }) async {
@@ -84,6 +85,7 @@ class ApiService {
         'date': date,
         'time': time,
         'appointment_type': appointmentType,
+        'session_purpose': sessionPurpose,
         'duration_minutes': durationMinutes,
         if (note != null && note.isNotEmpty) 'note': note,
       };

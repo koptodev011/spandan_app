@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_app/src/models/patient_history_model.dart';
 import 'package:flutter_app/src/models/patient_session_model.dart';
+import 'package:flutter_app/src/models/session_details_model.dart';
 import 'package:flutter_app/src/services/api_service.dart';
 import 'package:flutter_app/src/services/auth_service.dart';
 
 class Patient {
-  final int id;
+  final String id;
   final String fullName;
   final String? email;
   final String? phone;
@@ -20,7 +21,7 @@ class Patient {
 
   factory Patient.fromJson(Map<String, dynamic> json) {
     return Patient(
-      id: json['id'],
+      id: json['id'].toString(),
       fullName: json['full_name'] ?? 'Unknown',
       email: json['email'],
       phone: json['phone'],
@@ -101,7 +102,7 @@ class PatientService {
     }
   }
 
-  static Future<PatientSessionResponse> getPatientSessions(int patientId) async {
+  static Future<PatientSessionResponse> getPatientSessions(String patientId) async {
     try {
       final token = await AuthService.getToken();
       if (token == null) {
@@ -124,7 +125,7 @@ class PatientService {
     }
   }
 
-  static Future<PatientHistoryResponse> getPatientHistory(int patientId) async {
+  static Future<PatientHistoryResponse> getPatientHistory(String patientId) async {
     try {
       final token = await AuthService.getToken();
       if (token == null) {
@@ -145,6 +146,30 @@ class PatientService {
       }
     } catch (e) {
       throw Exception('Failed to load patient history: $e');
+    }
+  }
+
+  static Future<SessionDetailsResponse> getSessionDetails(String sessionId) async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null) {
+        throw Exception('Authentication required');
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/sessions/$sessionId'),
+        headers: ApiService.getHeaders(token: token),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return SessionDetailsResponse.fromJson(responseData);
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to load session details');
+      }
+    } catch (e) {
+      throw Exception('Failed to load session details: $e');
     }
   }
 }

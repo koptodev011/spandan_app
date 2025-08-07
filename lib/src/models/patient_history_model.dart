@@ -38,7 +38,7 @@ class PatientHistoryData {
 }
 
 class Patient {
-  final int id;
+  final String id;
   final String name;
   final int age;
   final String gender;
@@ -56,7 +56,7 @@ class Patient {
 
   factory Patient.fromJson(Map<String, dynamic> json) {
     return Patient(
-      id: json['id'],
+      id: json['id'].toString(),
       name: json['name'],
       age: json['age'],
       gender: json['gender'],

@@ -1,6 +1,6 @@
 class PatientSession {
-  final int id;
-  final int patientId;
+  final String id;
+  final String patientId;
   final String sessionType;
   final int expectedDuration;
   final String purpose;
@@ -25,8 +25,8 @@ class PatientSession {
 
   factory PatientSession.fromJson(Map<String, dynamic> json) {
     return PatientSession(
-      id: json['id'],
-      patientId: json['patient_id'],
+      id: json['id'].toString(),
+      patientId: json['patient_id'].toString(),
       sessionType: json['session_type'],
       expectedDuration: json['expected_duration'],
       purpose: json['purpose'],
@@ -59,10 +59,10 @@ class PatientSessionResponse {
       sessions: (json['data']['data'] as List)
           .map((session) => PatientSession.fromJson(session))
           .toList(),
-      currentPage: json['data']['current_page'],
-      total: json['data']['total'],
-      perPage: json['data']['per_page'],
-      lastPage: json['data']['last_page'],
+      currentPage: int.tryParse(json['data']['current_page'].toString()) ?? 1,
+      total: int.tryParse(json['data']['total'].toString()) ?? 0,
+      perPage: int.tryParse(json['data']['per_page'].toString()) ?? 10,
+      lastPage: int.tryParse(json['data']['last_page'].toString()) ?? 1,
     );
   }
 }

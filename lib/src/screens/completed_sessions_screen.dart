@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../services/patient_service.dart';
+import '../services/patient_service.dart' as patient_service;
 import '../models/patient_session_model.dart';
+import '../widgets/app_drawer.dart';
 
 class CompletedSessionsScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -15,9 +16,11 @@ class CompletedSessionsScreen extends StatefulWidget {
 }
 
 class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  
   // Patient dropdown related state
-  List<Patient> _patients = [];
-  Patient? _selectedPatient;
+  List<patient_service.Patient> _patients = [];
+  patient_service.Patient? _selectedPatient;
   bool _isLoadingPatients = false;
   
   // Sessions state
@@ -73,7 +76,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
     }
   }
   
-  Future<void> _loadPatientSessions(int patientId) async {
+  Future<void> _loadPatientSessions(String patientId) async {
     if (!mounted) return;
     
     setState(() {
@@ -180,15 +183,19 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Text(
           'Completed Sessions',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onBack,
+          icon: const Icon(Icons.menu, color: Colors.black),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -226,7 +233,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Patient Dropdown
-                        DropdownButtonFormField<Patient>(
+                        DropdownButtonFormField<patient_service.Patient>(
                           value: _selectedPatient,
                           decoration: InputDecoration(
                             labelText: 'Select Patient',
@@ -248,7 +255,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                           isExpanded: true,
                           hint: const Text('Select a patient...'),
                           items: _patients.map((patient) {
-                            return DropdownMenuItem<Patient>(
+                            return DropdownMenuItem<patient_service.Patient>(
                               value: patient,
                               child: Text(
                                 '${patient.fullName} (${patient.phone ?? 'No phone'})',
@@ -256,7 +263,7 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
                               ),
                             );
                           }).toList(),
-                          onChanged: (Patient? newValue) async {
+                          onChanged: (patient_service.Patient? newValue) async {
                             setState(() {
                               _selectedPatient = newValue;
                               _sessions = [];
