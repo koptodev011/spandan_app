@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -176,6 +177,47 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   // Check if the platform is web
   bool _isWeb() {
     return identical(0, 0.0); // A simple way to detect web platform
+  }
+
+  // Helper method to get image bytes for web and mobile
+  Future<Uint8List?> _getImageBytes(String imagePath) async {
+    try {
+      if (_isWeb()) {
+        // For web, handle both blob: and data: URLs
+        if (imagePath.startsWith('blob:')) {
+          // Handle blob URL
+          final response = await http.get(Uri.parse(imagePath));
+          if (response.statusCode == 200) {
+            return response.bodyBytes;
+          }
+        } else if (imagePath.startsWith('data:image')) {
+          // Handle data URL
+          final parts = imagePath.split(',');
+          if (parts.length == 2) {
+            return base64Decode(parts[1]);
+          }
+        }
+        // If we get here, try to read as a file path (for web when using file picker)
+        try {
+          final file = File(imagePath);
+          if (await file.exists()) {
+            return await file.readAsBytes();
+          }
+        } catch (e) {
+          print('Error reading file on web: $e');
+        }
+      } else {
+        // For mobile, read the file directly
+        final file = File(imagePath);
+        if (await file.exists()) {
+          return await file.readAsBytes();
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error getting image bytes: $e');
+      return null;
+    }
   }
 
   // Convert file path to web-compatible URL if needed
@@ -914,39 +956,90 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       }
 
       // Add images if they exist
+      print('\n=== PROCESSING ${_imagePaths.length} IMAGES ===');
       for (var i = 0; i < _imagePaths.length; i++) {
         try {
-          final imageFile = File(_imagePaths[i]);
+          final imagePath = _imagePaths[i];
+          print('\n--- Processing image ${i + 1} of ${_imagePaths.length} ---');
+          print('  - Original path: $imagePath');
           
-          if (!await imageFile.exists()) {
-            print('Image file not found at path: ${imageFile.path}');
-            continue;
+          if (_isWeb()) {
+            // For web, use bytes directly
+            print('  - Platform: Web');
+            print('  - Reading image bytes...');
+            final stopwatch = Stopwatch()..start();
+            final bytes = await _getImageBytes(imagePath);
+            stopwatch.stop();
+            
+            if (bytes == null) {
+              print('  ❌ Failed to read image bytes for web');
+              print('  - Took: ${stopwatch.elapsedMilliseconds}ms');
+              continue;
+            }
+            
+            print('  ✅ Successfully read image data');
+            print('  - Size: ${bytes.length} bytes');
+            print('  - Took: ${stopwatch.elapsedMilliseconds}ms');
+            
+            final fileExt = path.extension(imagePath).toLowerCase();
+            final contentType = _getContentTypeFromExtension(fileExt);
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final filename = 'medicine_${widget.patient['id'] ?? 'unknown'}_${timestamp}_$i$fileExt';
+            
+            print('  - Preparing multipart file:');
+            print('    - Filename: $filename');
+            print('    - Content-Type: ${contentType.mimeType}');
+            print('    - Field name: medicine_images[]');
+            
+            final fileField = http.MultipartFile.fromBytes(
+              'medicine_images[]',
+              bytes,
+              filename: filename,
+              contentType: contentType,
+            );
+            
+            print('  - Adding file to request...');
+            request.files.add(await fileField);
+            print('  ✅ File added to request');
+          } else {
+            // For mobile, use file path
+            print('  - Platform: Mobile');
+            final imageFile = File(imagePath);
+            final exists = await imageFile.exists();
+            print('  - File exists: $exists');
+            
+            if (!exists) {
+              print('  ❌ Image file not found at path: $imagePath');
+              continue;
+            }
+            
+            final fileExt = path.extension(imagePath).toLowerCase();
+            final contentType = _getContentTypeFromExtension(fileExt);
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final filename = 'medicine_${widget.patient['id'] ?? 'unknown'}_${timestamp}_$i$fileExt';
+            final fileSize = await imageFile.length();
+            
+            print('  - Preparing multipart file:');
+            print('    - Path: ${imageFile.path}');
+            print('    - Filename: $filename');
+            print('    - Size: $fileSize bytes');
+            print('    - Content-Type: ${contentType.mimeType}');
+            print('    - Field name: medicine_images[]');
+            
+            final fileField = http.MultipartFile.fromPath(
+              'medicine_images[]',
+              imageFile.path,
+              filename: filename,
+              contentType: contentType,
+            );
+            
+            print('  - Adding file to request...');
+            request.files.add(await fileField);
+            print('  ✅ File added to request');
           }
           
-          // Get file extension and determine content type
-          final fileExt = path.extension(_imagePaths[i]).toLowerCase();
-          final contentType = _getContentTypeFromExtension(fileExt);
-          
-          // Generate a unique filename with timestamp
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
-          final filename = 'medicine_${widget.patient['id'] ?? 'unknown'}_${timestamp}_$i$fileExt';
-          
-          print('Adding image file: ${imageFile.path}');
-          print('  - Filename: $filename');
-          print('  - Content-Type: ${contentType.mimeType}');
-          
-          // Add the file to the request
-          request.files.add(await http.MultipartFile.fromPath(
-            'medicine_images[]',
-            imageFile.path,
-            filename: filename,
-            contentType: contentType,
-          ));
-          
-          print('Successfully added image $i to request');
-          
         } catch (e, stackTrace) {
-          print('Error adding image file at index $i:');
+          print('❌ Error adding image file at index $i:');
           print('  - Path: ${_imagePaths[i]}');
           print('  - Error: $e');
           print('  - Stack trace: $stackTrace');
