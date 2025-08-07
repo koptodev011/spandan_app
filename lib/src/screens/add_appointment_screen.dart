@@ -25,10 +25,20 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
   String? _selectedTime;
   String _appointmentType = 'in-person';
   String _duration = '60';
+  String? _sessionPurpose;
   final TextEditingController _notesController = TextEditingController();
-  final TextEditingController _amountController = TextEditingController();
 
   final List<Map<String, dynamic>> _patients = [];
+  
+  final List<Map<String, String>> _purposeOptions = [
+    {'value': 'initial-consultation', 'label': 'Initial Consultation'},
+    {'value': 'follow-up', 'label': 'Follow-up Session'},
+    {'value': 'therapy', 'label': 'Therapy Session'},
+    {'value': 'medication-review', 'label': 'Medication Review'},
+    {'value': 'crisis-intervention', 'label': 'Crisis Intervention'},
+    {'value': 'assessment', 'label': 'Assessment'},
+    {'value': 'other', 'label': 'Other'},
+  ];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -99,15 +109,12 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
     }
   }
 
-  final List<String> _timeSlots = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'
-  ];
+  // Time of day variable to store the selected time
+  TimeOfDay? _selectedTimeOfDay;
 
   @override
   void dispose() {
     _notesController.dispose();
-    _amountController.dispose();
     super.dispose();
   }
 
@@ -120,8 +127,6 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
         return;
       }
       
-      // Parse amount to double, default to 0 if empty
-      final amount = double.tryParse(_amountController.text) ?? 0.0;
 
       setState(() {
         _isLoading = true;
@@ -136,27 +141,26 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
         // Format date to YYYY-MM-DD
         final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
         
-        // Convert time to 24-hour format (e.g., '2:30 PM' -> '14:30')
-        final timeFormat = DateFormat('h:mm a');
-        final dateTime = timeFormat.parse(_selectedTime!);
-        final formattedTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+        // Format time to 24-hour format from TimeOfDay
+        final formattedTime = '${_selectedTimeOfDay!.hour.toString().padLeft(2, '0')}:${_selectedTimeOfDay!.minute.toString().padLeft(2, '0')}';
         
         // Call the API to create appointment
-        await ApiService.createAppointment(
+        final appointmentData = await ApiService.createAppointment(
           patientId: int.parse(_selectedPatientId!),
           date: formattedDate,
           time: formattedTime,
           appointmentType: _appointmentType,
+          sessionPurpose: _sessionPurpose,
           durationMinutes: int.parse(_duration),
           note: _notesController.text.isNotEmpty ? _notesController.text : null,
           token: token,
         );
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Appointment created successfully')),
-          );
-          Navigator.pop(context, true); // Return success
+          // Call the onSave callback with the created appointment data
+          widget.onSave(appointmentData);
+          // Close the screen and return success
+          Navigator.pop(context, true);
         }
       } catch (e) {
         if (mounted) {
@@ -224,8 +228,8 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
               _buildDurationDropdown(),
               const SizedBox(height: 16),
               
-              _buildSectionHeader('Amount (₹)'),
-              _buildAmountField(),
+              _buildSectionHeader('Session Purpose'),
+              _buildSessionPurposeDropdown(),
               const SizedBox(height: 16),
               
               _buildSectionHeader('Notes (Optional)'),
@@ -467,15 +471,49 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
   }
 
   Widget _buildTimeDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedTime,
-      decoration: _inputDecoration(suffixIcon: Icons.access_time),
-      hint: const Text('Select time'),
-      items: _timeSlots.map((time) {
-        return DropdownMenuItem(value: time, child: Text(time));
-      }).toList(),
-      onChanged: (value) => setState(() => _selectedTime = value),
-      validator: (value) => value == null ? 'Please select a time' : null,
+    return InkWell(
+      onTap: () async {
+        final TimeOfDay? picked = await showTimePicker(
+          context: context,
+          initialTime: _selectedTimeOfDay ?? TimeOfDay.now(),
+          builder: (BuildContext context, Widget? child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: const Color(0xFF5BBFF2), // header background color
+                  onPrimary: Colors.white, // header text color
+                  onSurface: Colors.black, // body text color
+                ),
+                textButtonTheme: TextButtonThemeData(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF5BBFF2), // button text color
+                  ),
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        
+        if (picked != null) {
+          setState(() {
+            _selectedTimeOfDay = picked;
+            // Format the time as 'HH:mm' for the API
+            _selectedTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          });
+        }
+      },
+      child: InputDecorator(
+        decoration: _inputDecoration(suffixIcon: Icons.access_time),
+        child: Text(
+          _selectedTimeOfDay != null
+              ? _selectedTimeOfDay!.format(context)
+              : 'Select time',
+          style: GoogleFonts.inter(
+            color: _selectedTimeOfDay != null ? Colors.black87 : Colors.grey,
+          ),
+        ),
+      ),
     );
   }
 
@@ -541,23 +579,27 @@ class _AddAppointmentScreenState extends State<AddAppointmentScreen> {
     );
   }
 
-  Widget _buildAmountField() {
-    return TextFormField(
-      controller: _amountController,
-      keyboardType: TextInputType.numberWithOptions(decimal: true),
+  Widget _buildSessionPurposeDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _sessionPurpose,
       decoration: _inputDecoration(
-        hintText: '0.00',
+        hintText: 'Select session purpose',
+        suffixIcon: Icons.arrow_drop_down,
       ),
+      items: _purposeOptions.map<DropdownMenuItem<String>>((option) {
+        return DropdownMenuItem<String>(
+          value: option['value'],
+          child: Text(option['label'] ?? ''),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _sessionPurpose = value;
+        });
+      },
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter an amount';
-        }
-        final amount = double.tryParse(value);
-        if (amount == null) {
-          return 'Please enter a valid amount';
-        }
-        if (amount < 0) {
-          return 'Amount cannot be negative';
+          return 'Please select a session purpose';
         }
         return null;
       },

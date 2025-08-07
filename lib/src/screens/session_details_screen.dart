@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,8 @@ import 'package:path/path.dart' as path;
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 // Local imports
 import '../services/api_service.dart';
@@ -35,8 +38,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   final TextEditingController _mentalHealthController = TextEditingController();
   final TextEditingController _medicationNotesController = TextEditingController();
   
-  String? _selectedDose;
-  final List<String> _doseOptions = ['800', '1000', '1200'];
+  String? _selectedPrice;
+  final List<String> _priceOptions = ['800', '1000', '1200'];
   final List<String> _imagePaths = [];
   bool _isLoading = false;
   final ImagePicker _picker = ImagePicker();
@@ -173,6 +176,57 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   // Check if the platform is web
   bool _isWeb() {
     return identical(0, 0.0); // A simple way to detect web platform
+  }
+
+  // Convert file path to web-compatible URL if needed
+  String _getImageUrl(String path) {
+    if (_isWeb()) {
+      // For web, return as is (it's already a web URL or data URL)
+      return path;
+    } else {
+      // For mobile, return the file path
+      return path;
+    }
+  }
+  
+  // Helper method to get content type from file extension
+  MediaType _getContentTypeFromExtension(String extension) {
+    switch (extension) {
+      case '.jpg':
+      case '.jpeg':
+        return MediaType('image', 'jpeg');
+      case '.png':
+        return MediaType('image', 'png');
+      case '.gif':
+        return MediaType('image', 'gif');
+      case '.webp':
+        return MediaType('image', 'webp');
+      default:
+        // Default to jpeg if extension is not recognized
+        return MediaType('image', 'jpeg');
+    }
+  }
+  
+  // Helper method to get MIME type for audio files
+  MediaType _getAudioMimeType(String extension) {
+    switch (extension.toLowerCase()) {
+      case '.mp3':
+        return MediaType('audio', 'mpeg');
+      case '.wav':
+        return MediaType('audio', 'wav');
+      case '.aac':
+        return MediaType('audio', 'aac');
+      case '.m4a':
+      case '.mp4':
+        return MediaType('audio', 'mp4');
+      case '.ogg':
+        return MediaType('audio', 'ogg');
+      case '.webm':
+        return MediaType('audio', 'webm');
+      default:
+        // Default to m4a if extension is not recognized
+        return MediaType('audio', 'm4a');
+    }
   }
   
   // Request microphone permission
@@ -443,16 +497,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
                   color: const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  'Remote Session',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF4F46E5),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    height: 1.33,
-                    letterSpacing: 0.2,
-                  ),
-                ),
               ),
             ],
           ),
@@ -667,19 +711,100 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
   // Pick image from gallery or camera
   Future<void> _pickImage() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      // Check and request storage permission for mobile
+      if (!_isWeb()) {
+        final permission = await Permission.storage.request();
+        if (!permission.isGranted) {
+          _showSnackBar('Storage permission is required to upload images');
+          return;
+        }
+      }
+
+      // Show a bottom sheet to let user choose between camera and gallery
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from Gallery'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Take a Photo'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (source == null) return;
+
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        imageQuality: 85, // Reduce image quality to save space
+        maxWidth: 1200,  // Limit image width
+      );
+
       if (image != null) {
-        // Get the application documents directory
-        final appDir = await getApplicationDocumentsDirectory();
-        final fileName = path.basename(image.path);
-        final savedImage = await File(image.path).copy('${appDir.path}/$fileName');
-        
         setState(() {
-          _imagePaths.add(savedImage.path);
+          _isLoading = true;
         });
+
+        try {
+          if (_isWeb()) {
+            // For web, just use the temporary file path
+            setState(() {
+              _imagePaths.add(image.path);
+              _showSnackBar('Image added successfully');
+            });
+          } else {
+            // For mobile, save to app directory
+            final appDir = await getApplicationDocumentsDirectory();
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final ext = path.extension(image.path);
+            final fileName = 'medicine_${widget.patient['id'] ?? 'unknown'}_$timestamp$ext';
+            
+            // Create a directory for medicine images if it doesn't exist
+            final medicineDir = Directory('${appDir.path}/medicine_images');
+            if (!await medicineDir.exists()) {
+              await medicineDir.create(recursive: true);
+            }
+            
+            final savedImagePath = '${medicineDir.path}/$fileName';
+            final savedImage = await File(image.path).copy(savedImagePath);
+            
+            setState(() {
+              _imagePaths.add(savedImage.path);
+              _showSnackBar('Image added successfully');
+            });
+          }
+        } catch (e) {
+          _showSnackBar('Failed to process image: $e');
+          debugPrint('Image processing error: $e');
+        } finally {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }
       }
     } catch (e) {
-      _showSnackBar('Failed to pick image: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      _showSnackBar('Failed to pick image: ${e.toString()}');
+      debugPrint('Image picker error: $e');
     }
   }
 
@@ -699,30 +824,191 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
         throw Exception('Not authenticated');
       }
 
-      // Get session ID from widget.patient or another source
-      final sessionId = widget.patient['session_id'] as int?;
-      if (sessionId == null) {
-        throw Exception('Session ID is missing');
+      // Get session ID from patient data or use a default
+      final sessionId = widget.patient['session_id']?.toString() ?? '7';
+      
+      // Log the data being sent for debugging
+      print('Submitting session data for session ID: $sessionId');
+      print('Physical Health Notes: ${_notesController.text}');
+      print('Mental Health Notes: ${_mentalHealthController.text}');
+      print('Medication Notes: ${_medicationNotesController.text}');
+      print('Medicine Price: $_selectedPrice');
+      print('Audio Path: $_audioPath');
+      print('Image Paths: $_imagePaths');
+
+      // Create the complete session data structure
+      final sessionData = {
+        'physical_health_notes': _notesController.text,
+        'mental_health_notes': _mentalHealthController.text,
+        'medicine_notes': _medicationNotesController.text,  // Changed from medication_notes to medicine_notes
+        'medicine_price': _selectedPrice,
+        'session_date': DateTime.now().toIso8601String(),
+      };
+
+      // Debug: Print the complete session data
+      print('Session Data to be sent:');
+      sessionData.forEach((key, value) {
+        print('$key: ${value.toString()} (${value.runtimeType})');
+      });
+
+      final url = 'http://localhost:8000/api/sessions/$sessionId/complete';
+      print('Sending request to: $url');
+      
+      final uri = Uri.parse(url);
+      final request = http.MultipartRequest('POST', uri);
+      
+      // Add form fields directly instead of nested JSON
+      sessionData.forEach((key, value) {
+        if (value != null) {
+          request.fields[key] = value.toString();
+        }
+      });
+      
+      // Add token to headers
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      // Add audio file if exists
+      if (_audioPath != null && _audioPath!.isNotEmpty) {
+        try {
+          final audioFile = File(_audioPath!);
+          if (await audioFile.exists()) {
+            print('Adding audio file: ${audioFile.path}');
+            
+            // Get the file extension and determine MIME type
+            final fileExt = path.extension(_audioPath!).toLowerCase();
+            final mimeType = _getAudioMimeType(fileExt);
+            
+            // Create a unique filename with timestamp and patient ID
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final filename = 'voice_note_${widget.patient['id'] ?? 'unknown'}_$timestamp$fileExt';
+            
+            print('Audio file details:');
+            print('  - Path: ${audioFile.path}');
+            print('  - Size: ${(await audioFile.length()) / 1024} KB');
+            print('  - MIME Type: ${mimeType.mimeType}');
+            print('  - Uploading as: $filename');
+            
+            // Add the audio file to the request
+            request.files.add(await http.MultipartFile.fromPath(
+              'voice_notes',  // Changed from 'voice_notes_path' to 'voice_notes'
+              audioFile.path,
+              filename: filename,
+              contentType: mimeType,
+            ));
+            
+            print('Successfully added audio file to request');
+          } else {
+            final errorMsg = 'Audio file not found at path: ${audioFile.path}';
+            print(errorMsg);
+            _showSnackBar(errorMsg);
+          }
+        } catch (e, stackTrace) {
+          final errorMsg = 'Error adding audio file: $e';
+          print(errorMsg);
+          print('Stack trace: $stackTrace');
+          _showSnackBar('Error: Could not attach audio file');
+        }
+      } else {
+        print('No audio file to upload');
       }
 
-      await ApiService.completeSession(
-        sessionId: sessionId,
-        token: token,
-        physicalHealthNotes: _physicalHealthController.text,
-        mentalHealthNotes: _mentalHealthController.text,
-        medicationNotes: _medicationNotesController.text,
-        selectedDosage: _selectedDose,
-        imagePaths: _imagePaths.isNotEmpty ? _imagePaths : null,
-      );
+      // Add images if they exist
+      for (var i = 0; i < _imagePaths.length; i++) {
+        try {
+          final imageFile = File(_imagePaths[i]);
+          
+          if (!await imageFile.exists()) {
+            print('Image file not found at path: ${imageFile.path}');
+            continue;
+          }
+          
+          // Get file extension and determine content type
+          final fileExt = path.extension(_imagePaths[i]).toLowerCase();
+          final contentType = _getContentTypeFromExtension(fileExt);
+          
+          // Generate a unique filename with timestamp
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final filename = 'medicine_${widget.patient['id'] ?? 'unknown'}_${timestamp}_$i$fileExt';
+          
+          print('Adding image file: ${imageFile.path}');
+          print('  - Filename: $filename');
+          print('  - Content-Type: ${contentType.mimeType}');
+          
+          // Add the file to the request
+          request.files.add(await http.MultipartFile.fromPath(
+            'medicine_images[]',
+            imageFile.path,
+            filename: filename,
+            contentType: contentType,
+          ));
+          
+          print('Successfully added image $i to request');
+          
+        } catch (e, stackTrace) {
+          print('Error adding image file at index $i:');
+          print('  - Path: ${_imagePaths[i]}');
+          print('  - Error: $e');
+          print('  - Stack trace: $stackTrace');
+          _showSnackBar('Error adding image ${i + 1}: ${e.toString()}');
+        }
+      }
 
-      _showSnackBar('Session details saved successfully');
+      // Print request details before sending
+      print('\n=== REQUEST DETAILS ===');
+      print('URL: ${request.url}');
+      print('Method: ${request.method}');
+      print('Headers:');
+      request.headers.forEach((key, value) => print('  $key: $value'));
+      print('\nFields:');
+      request.fields.forEach((key, value) => print('  $key: ${value.toString().substring(0, value.toString().length > 100 ? 100 : value.toString().length)}${value.toString().length > 100 ? '...' : ''}'));
+      print('\nFiles to upload: ${request.files.length}');
+      for (var file in request.files) {
+        print('  - ${file.filename} (${file.contentType})');
+      }
+      print('=====================\n');
+
+      // Send request with timeout
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Request timed out');
+        },
+      );
       
-      // Optionally navigate back or show success message
-      if (mounted) {
-        Navigator.of(context).pop(true); // Return success
+      final response = await http.Response.fromStream(streamedResponse);
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Success
+        final responseData = json.decode(response.body);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Session saved successfully'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+          Navigator.pop(context, true); // Return success
+        }
+      } else {
+        // Error
+        try {
+          final errorData = json.decode(response.body);
+          throw Exception(errorData['message'] ?? 
+              'Failed to save session. Status: ${response.statusCode}');
+        } catch (e) {
+          throw Exception('Failed to save session. Status: ${response.statusCode}. ${response.body}');
+        }
       }
     } catch (e) {
-      _showSnackBar('Failed to save session details: $e');
+      _showSnackBar('Failed to save session: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -783,133 +1069,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Dosage Dropdown
+                // Notes Section - Moved to top
                 Text(
-                  'Dosage (mg)',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF374151),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFD1D5DB), width: 1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      hint: const Text('Select dosage'),
-                      value: _selectedDose,
-                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF6B7280)),
-                      items: _doseOptions.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text('$value mg'),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedDose = newValue;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Image Upload Section
-                Text(
-                  'Upload Prescription/Medicine Images',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF374151),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                
-                // Image Grid
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: 1,
-                  ),
-                  itemCount: _imagePaths.length + 1, // +1 for the add button
-                  itemBuilder: (context, index) {
-                    if (index == _imagePaths.length) {
-                      // Add Image Button
-                      return GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFD1D5DB), width: 1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate_outlined, 
-                                  size: 32, color: Color(0xFF9CA3AF)),
-                              SizedBox(height: 4),
-                              Text('Add Image', 
-                                  style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                            ],
-                          ),
-                        ),
-                      );
-                    } else {
-                      // Display Selected Image
-                      return Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(_imagePaths[index]),
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              height: double.infinity,
-                            ),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _imagePaths.removeAt(index);
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.close, 
-                                    size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                  },
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Notes Section
-                Text(
-                  'Additional Notes',
+                  'Medicine Notes',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -918,7 +1080,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
                 ),
                 const SizedBox(height: 8),
                 TextField(
-                  controller: _notesController,
+                  controller: _medicationNotesController,
                   maxLines: 4,
                   style: GoogleFonts.inter(
                     fontSize: 14,
@@ -945,6 +1107,233 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
                       borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
                     ),
                     contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Image Upload Section - Moved to middle
+                Text(
+                  'Upload Prescription/Medicine Images',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF374151),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // Image Grid
+                _imagePaths.isEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.upload_file, size: 48, color: Color(0xFF9CA3AF)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Drag & drop images here or',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: _pickImage,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F46E5),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                              label: const Text('Browse Files'),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Supports JPG, PNG, GIF (Max 5MB each)',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: const Color(0xFF9CA3AF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 1,
+                            ),
+                            itemCount: _imagePaths.length + (_imagePaths.length < 10 ? 1 : 0), // Max 10 images
+                            itemBuilder: (context, index) {
+                              if (index == _imagePaths.length) {
+                                // Add Image Button
+                                return GestureDetector(
+                                  onTap: _pickImage,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: const Color(0xFFD1D5DB), width: 1.5),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.add_photo_alternate_outlined, 
+                                            size: 24, color: Color(0xFF9CA3AF)),
+                                        SizedBox(height: 4),
+                                        Text('Add More', 
+                                            style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                // Display Selected Image
+                                return Stack(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: _isWeb()
+                                          ? Image.network(
+                                              _imagePaths[index],
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Container(
+                                                  color: Colors.grey[200],
+                                                  child: const Center(
+                                                    child: Icon(Icons.broken_image, color: Colors.grey),
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                          : Image.file(
+                                              File(_imagePaths[index]),
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[200],
+                                            child: const Center(
+                                              child: Icon(Icons.broken_image, color: Colors.grey),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _imagePaths.removeAt(index);
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.close, 
+                                              size: 16, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                    if (index == 0)
+                                      Positioned(
+                                        bottom: 4,
+                                        left: 4,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            '${_imagePaths.length} of 10',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              }
+                            },
+                          ),
+                          if (_imagePaths.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                '${_imagePaths.length} ${_imagePaths.length == 1 ? 'image' : 'images'} selected',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                
+                const SizedBox(height: 24),
+                
+                // Medicine Price Dropdown
+                Text(
+                  'Medicine Price (₹)',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF374151),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFD1D5DB), width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      hint: const Text('Select price'),
+                      value: _selectedPrice,
+                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF6B7280)),
+                      items: _priceOptions.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text('₹$value'),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedPrice = newValue;
+                        });
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -1309,13 +1698,26 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                placeholder,
+              child: TextField(
+                controller: title == 'Mental Health Observations' ? _mentalHealthController : null,
+                maxLines: null,
+                expands: true,
                 style: GoogleFonts.inter(
                   fontSize: 14,
-                  color: const Color(0xFF9CA3AF),
+                  color: const Color(0xFF111827),
                   height: 1.5,
                 ),
+                decoration: InputDecoration(
+                  hintText: placeholder,
+                  hintStyle: GoogleFonts.inter(
+                    color: const Color(0xFF9CA3AF),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                textAlignVertical: TextAlignVertical.top,
               ),
             ),
           ),
@@ -1347,20 +1749,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           ElevatedButton.icon(
-            onPressed: () {
-              // Save session logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Session saved successfully'),
-                  backgroundColor: Colors.green,
-                  behavior: SnackBarBehavior.floating,
-                  margin: EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(8)),
-                  ),
-                ),
-              );
-            },
+            onPressed: _submitSessionDetails,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF4F46E5),
               foregroundColor: Colors.white,

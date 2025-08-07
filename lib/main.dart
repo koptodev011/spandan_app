@@ -5,7 +5,8 @@ import 'src/screens/login_screen.dart';
 import 'src/screens/patients_screen.dart';
 import 'src/screens/appointment_manager_screen.dart';
 import 'src/screens/reports_screen.dart';
-import 'src/screens/transactions_screen.dart';
+import 'src/screens/transactions_updated_screen.dart';
+import 'src/screens/add_transaction_screen.dart';
 import 'src/screens/completed_sessions_screen.dart';
 
 void main() async {
@@ -57,7 +58,8 @@ class MyApp extends StatelessWidget {
         '/appointments': (context) => const AppointmentManagerScreen(),
         '/completed-sessions': (context) => CompletedSessionsScreen(onBack: () => Navigator.pop(context)),
         '/reports': (context) => const ReportsScreen(),
-        '/transactions': (context) => const TransactionsScreen(),
+        TransactionsUpdatedScreen.routeName: (context) => const TransactionsUpdatedScreen(),
+        AddTransactionScreen.routeName: (context) => const AddTransactionScreen(),
       },
       // Check if user is already logged in
       home: FutureBuilder<bool>(

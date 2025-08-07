@@ -110,29 +110,32 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
     }).toList();
   }
 
-  void _handleAddAppointment() async {
+  Future<void> _handleAddAppointment() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AddAppointmentScreen(
-          onSave: _addNewAppointment,
+          onSave: (appointment) {
+            // This will be called when the appointment is successfully created
+            // The appointment data is already saved to the backend at this point
+            // We'll refresh the appointments list to show the new appointment
+            _fetchAppointments(_selectedDay);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Appointment created successfully')),
+              );
+            }
+          },
           onBack: () => Navigator.pop(context),
         ),
       ),
     );
 
-    if (result != null && mounted) {
-      setState(() {
-        // Refresh the appointments list
-      });
+    // Refresh the appointments list when returning from the add appointment screen
+    // This handles the case where the user pressed back without saving
+    if (mounted) {
+      await _fetchAppointments(_selectedDay);
     }
-  }
-
-  void _addNewAppointment(Map<String, dynamic> appointmentData) {
-    // TODO: Implement the logic to add a new appointment
-    // This will be called when the form is submitted in AddAppointmentScreen
-    print('New appointment: $appointmentData');
-    // After adding, the screen will automatically pop and return here
   }
 
   void _handleEditAppointment(Map<String, dynamic> appointment) {
@@ -388,13 +391,6 @@ class _AppointmentManagerScreenState extends State<AppointmentManagerScreen> {
               _buildAppointmentsList(),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Implement new appointment
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Appointment'),
       ),
     );
   }
