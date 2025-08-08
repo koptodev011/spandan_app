@@ -8,15 +8,7 @@ import 'package:path/path.dart' as path;
 class ApiService {
   // For web, use localhost, for Android emulator use 10.0.2.2, for physical device use your computer's IP
   static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:8000/api';
-    } else {
-      // For Android emulator
-      return 'http://10.0.2.2:8000/api';
-      
-      // For physical device, uncomment and replace with your computer's IP
-      // return 'http://YOUR_COMPUTER_IP:8000/api';
-    }
+    return 'https://spandan.koptotech.solutions/api';
   }
 
   // Add headers for authenticated requests with CORS support
@@ -213,6 +205,7 @@ class ApiService {
     required String time,
     required String appointmentType,
     required int durationMinutes,
+    String? sessionPurpose,
     String? note,
     required String token,
   }) async {
@@ -224,6 +217,7 @@ class ApiService {
         'time': time,
         'appointment_type': appointmentType,
         'duration_minutes': durationMinutes,
+        if (sessionPurpose != null && sessionPurpose.isNotEmpty) 'session_purpose': sessionPurpose,
         if (note != null && note.isNotEmpty) 'note': note,
         '_method': 'PUT', // Laravel requires this for PUT requests with form data
       };

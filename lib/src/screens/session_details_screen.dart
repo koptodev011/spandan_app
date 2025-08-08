@@ -893,7 +893,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
         print('$key: ${value.toString()} (${value.runtimeType})');
       });
 
-      final url = 'http://localhost:8000/api/sessions/$sessionId/complete';
+      final url = 'https://spandan.koptotech.solutions/api/sessions/$sessionId/complete';
       print('Sending request to: $url');
       
       final uri = Uri.parse(url);

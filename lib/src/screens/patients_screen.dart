@@ -89,7 +89,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
               'id': appointment['id'],
               'patientId': appointment['patient_id'],
               'patientName': patient['full_name'] ?? 'Unknown',
-              'age': patient['age'] ?? 0,
+              'age': patient['age'] != null ? int.tryParse(patient['age'].toString()) ?? 0 : 0,
               'gender': (patient['gender'] ?? 'Other').toString().toLowerCase() == 'male' ? 'Male' : 'Female',
               'sessionDate': formattedDate,
               'sessionTime': formattedTime,
@@ -99,6 +99,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
               'durationMinutes': appointment['duration_minutes'] ?? 30,
               'note': appointment['note'] ?? '',
               'dateTime': dateTime,
+              'patient': {
+                'profile_image': patient['profile_image'],
+              },
             };
           }).toList();
           
@@ -360,6 +363,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
                               itemCount: _filteredSessions.length,
                               itemBuilder: (context, index) {
                                 final session = _filteredSessions[index];
+                                // Get the image URL from the patient data or use an empty string if not available
+                                final patientImage = session['patient']?['profile_image'] ?? '';
+                                final imageUrl = patientImage != null && patientImage.isNotEmpty 
+                                    ? 'https://spandan.koptotech.solutions/storage/$patientImage'
+                                    : '';
+                                    
                                 return SessionCard(
                                   patientName: session['patientName'],
                                   age: session['age'],
@@ -367,7 +376,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                                   sessionTime: session['sessionTime'],
                                   sessionType: session['sessionType'],
                                   durationMinutes: session['durationMinutes'],
-                                  imageUrl: '',
+                                  imageUrl: imageUrl,
                                   onStartSession: () {
                                     _startNewSession(context, {
                                       'id': session['patientId'],

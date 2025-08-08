@@ -23,7 +23,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic> _reportData = {};
-  final _apiBaseUrl = 'http://localhost:8000/api';
+  final _apiBaseUrl = 'https://spandan.koptotech.solutions/api';
 
   // Report types
   final List<String> _reportTypes = [
@@ -1051,14 +1051,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 const Icon(Icons.timer, size: 16, color: Colors.grey),
                 const SizedBox(width: 8),
                 Text(
-                  '${session['duration_minutes'] ?? 'N/A'} minutes',
+                  '${session['time'] ?? 'N/A'} minutes',
                   style: const TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(width: 16),
                 const Icon(Icons.medical_services, size: 16, color: Colors.grey),
                 const SizedBox(width: 8),
                 Text(
-                  session['session_type']?.toString().replaceAll('_', ' ').capitalize() ?? 'N/A',
+                  session['type']?.toString().replaceAll('_', ' ').capitalize() ?? 'N/A',
                   style: const TextStyle(color: Colors.grey),
                 ),
               ],

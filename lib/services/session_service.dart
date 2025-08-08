@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/session.dart';
 
 class SessionService {
-  final String baseUrl = 'http://your-api-base-url'; // Replace with your actual API URL
+  final String baseUrl = 'https://spandan.koptotech.solutions/api'; // Live production URL
 
   Future<Session> getSessionById(String sessionId) async {
     try {

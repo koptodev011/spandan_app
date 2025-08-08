@@ -40,13 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
-        // For web, use localhost, for Android use 10.0.2.2
-        final baseUrl = const bool.fromEnvironment('dart.library.js_util')
-            ? 'http://localhost:8000'
-            : 'http://10.0.2.2:8000';
-
+        // Live production URL
         final response = await http.post(
-          Uri.parse('$baseUrl/api/login'),
+          Uri.parse('https://spandan.koptotech.solutions/api/login'),
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
