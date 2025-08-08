@@ -455,13 +455,41 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
               ],
             ),
             
-            if (session.notes.isNotEmpty) ...[
+            if (session.notes.isNotEmpty && session.notes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Session Notes:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: Colors.blueGrey,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(
-                'Notes: ${session.notes.join(', ')}',
-                style: const TextStyle(fontStyle: FontStyle.italic),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (session.notes[0]['general_notes'] != null && session.notes[0]['general_notes'].toString().isNotEmpty)
+                      _buildNoteSection('General Notes', session.notes[0]['general_notes']),
+                    
+                    if (session.notes[0]['physical_health_notes'] != null && session.notes[0]['physical_health_notes'].toString().isNotEmpty)
+                      _buildNoteSection('Physical Health', session.notes[0]['physical_health_notes']),
+                    
+                    if (session.notes[0]['mental_health_notes'] != null && session.notes[0]['mental_health_notes'].toString().isNotEmpty)
+                      _buildNoteSection('Mental Health', session.notes[0]['mental_health_notes']),
+                    
+                    if (session.notes[0]['medicine_price'] != null && session.notes[0]['medicine_price'].toString().isNotEmpty)
+                      _buildNoteSection('Medicine Price', '₹${session.notes[0]['medicine_price']}'),
+                  ],
+                ),
               ),
             ],
           ],
@@ -621,36 +649,61 @@ class _CompletedSessionsScreenState extends State<CompletedSessionsScreen> {
     );
   }
 
+  Widget _buildNoteSection(String title, dynamic content) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.blueGrey[700],
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            content?.toString() ?? '',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatCard(String value, String label, IconData icon) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
+    return Expanded(
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            children: [
+              Icon(icon, size: 24, color: Colors.blue),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
-          ],
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

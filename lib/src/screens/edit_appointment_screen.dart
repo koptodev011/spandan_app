@@ -31,17 +31,19 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
   // Form fields
   String? _selectedPatientId;
   DateTime? _selectedDate;
-  String? _selectedTime;
+  TimeOfDay? _selectedTimeOfDay;
   String _appointmentType = 'consultation';
   String _duration = '30';
-
-  // Available time slots
-  final List<String> _timeSlots = [
-    '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
-    '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
-    '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
-    '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
-    '05:00 PM'
+  String? _sessionPurpose;
+  
+  final List<Map<String, String>> _purposeOptions = [
+    {'value': 'initial-consultation', 'label': 'Initial Consultation'},
+    {'value': 'follow-up', 'label': 'Follow-up Session'},
+    {'value': 'therapy', 'label': 'Therapy Session'},
+    {'value': 'medication-review', 'label': 'Medication Review'},
+    {'value': 'crisis-intervention', 'label': 'Crisis Intervention'},
+    {'value': 'assessment', 'label': 'Assessment'},
+    {'value': 'other', 'label': 'Other'},
   ];
 
   @override
@@ -70,17 +72,21 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
       
       // Parse and set the time
       if (widget.appointment['time'] != null) {
-        final formattedTime = _formatTimeForDisplay(widget.appointment['time']);
-        // Ensure the formatted time exists in _timeSlots
-        if (_timeSlots.contains(formattedTime)) {
-          _selectedTime = formattedTime;
-        } else {
-          // If not found, use the first available time slot
-          _selectedTime = _timeSlots.isNotEmpty ? _timeSlots[0] : null;
+        final timeStr = widget.appointment['time'] as String;
+        try {
+          final timeParts = timeStr.split(':');
+          if (timeParts.length >= 2) {
+            final hour = int.parse(timeParts[0]);
+            final minute = int.parse(timeParts[1]);
+            _selectedTimeOfDay = TimeOfDay(hour: hour, minute: minute);
+          } else {
+            _selectedTimeOfDay = const TimeOfDay(hour: 9, minute: 0);
+          }
+        } catch (e) {
+          _selectedTimeOfDay = const TimeOfDay(hour: 9, minute: 0);
         }
       } else {
-        // If no time is provided, use the first available time slot
-        _selectedTime = _timeSlots.isNotEmpty ? _timeSlots[0] : null;
+        _selectedTimeOfDay = const TimeOfDay(hour: 9, minute: 0);
       }
       
       // Set appointment type
@@ -91,6 +97,11 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
       // Set duration
       if (widget.appointment['duration_minutes'] != null) {
         _duration = widget.appointment['duration_minutes'].toString();
+      }
+      
+      // Set session purpose
+      if (widget.appointment['session_purpose'] != null) {
+        _sessionPurpose = widget.appointment['session_purpose'];
       }
       
       // Set notes
@@ -202,7 +213,7 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
 
   Future<void> _updateAppointment() async {
     if (_formKey.currentState!.validate()) {
-      if (_selectedDate == null || _selectedPatientId == null || _selectedTime == null) {
+      if (_selectedDate == null || _selectedPatientId == null || _selectedTimeOfDay == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please fill in all required fields')),
         );
@@ -222,10 +233,8 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
         // Format date to YYYY-MM-DD
         final formattedDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
         
-        // Convert time to 24-hour format (e.g., '2:30 PM' -> '14:30')
-        final timeFormat = DateFormat('h:mm a');
-        final dateTime = timeFormat.parse(_selectedTime!);
-        final formattedTime = '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+        // Format time to 24-hour format (e.g., '14:30')
+        final formattedTime = '${_selectedTimeOfDay!.hour.toString().padLeft(2, '0')}:${_selectedTimeOfDay!.minute.toString().padLeft(2, '0')}';
         
         // Call the API to update appointment
         await ApiService.updateAppointment(
@@ -234,6 +243,7 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
           date: formattedDate,
           time: formattedTime,
           appointmentType: _appointmentType,
+          sessionPurpose: _sessionPurpose,
           durationMinutes: int.parse(_duration),
           note: _notesController.text.isNotEmpty ? _notesController.text : null,
           token: token,
@@ -263,59 +273,6 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
           });
         }
       }
-    }
-  }
-
-  String _formatTimeForDisplay(String time) {
-    try {
-      // If time is already in the correct format, return as is
-      if (_timeSlots.contains(time)) {
-        return time;
-      }
-      
-      // If time is in 12-hour format but with seconds, remove seconds
-      if (time.contains('AM') || time.contains('PM')) {
-        final timePart = time.split(' ')[0];
-        final period = time.contains('AM') ? 'AM' : 'PM';
-        final components = timePart.split(':');
-        if (components.length >= 2) {
-          // Format as 'H:MM AM/PM' to match _timeSlots format
-          final hour = int.parse(components[0]);
-          final minute = components[1];
-          return '${hour > 12 ? hour - 12 : hour}:$minute $period';
-        }
-      }
-      
-      // Parse 24-hour time to 12-hour format
-      final timeComponents = time.split(':');
-      if (timeComponents.length >= 2) {
-        int hour = int.parse(timeComponents[0]);
-        final minute = timeComponents[1];
-        final period = hour >= 12 ? 'PM' : 'AM';
-        hour = hour % 12;
-        hour = hour == 0 ? 12 : hour; // Convert 0 to 12 for 12 AM/PM
-        
-        // Format to match exactly with _timeSlots format
-        final formattedTime = '$hour:${minute.padLeft(2, '0')} $period';
-        
-        // If the formatted time exists in _timeSlots, return it
-        if (_timeSlots.contains(formattedTime)) {
-          return formattedTime;
-        }
-        
-        // If not found, find the closest match
-        for (var slot in _timeSlots) {
-          if (slot.startsWith('$hour:') && slot.endsWith(period)) {
-            return slot;
-          }
-        }
-      }
-      
-      // Default to first time slot if no match found
-      return _timeSlots.isNotEmpty ? _timeSlots[0] : '09:00 AM';
-    } catch (e) {
-      print('Error formatting time: $e');
-      return _timeSlots.isNotEmpty ? _timeSlots[0] : '09:00 AM';
     }
   }
 
@@ -356,7 +313,7 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
                     const SizedBox(height: 16),
                     
                     _buildSectionHeader('Time *'),
-                    _buildTimeDropdown(),
+                    _buildTimePicker(),
                     const SizedBox(height: 16),
                     
                     _buildSectionHeader('Appointment Type'),
@@ -365,6 +322,10 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
                     
                     _buildSectionHeader('Duration (minutes)'),
                     _buildDurationDropdown(),
+                    const SizedBox(height: 16),
+                    
+                    _buildSectionHeader('Session Purpose'),
+                    _buildSessionPurposeDropdown(),
                     const SizedBox(height: 16),
                     
                     _buildSectionHeader('Notes (Optional)'),
@@ -668,53 +629,99 @@ class _EditAppointmentScreenState extends State<EditAppointmentScreen> {
     );
   }
 
-  Widget _buildTimeDropdown() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: ButtonTheme(
-          alignedDropdown: true,
-          child: DropdownButtonFormField<String>(
-            value: _selectedTime,
-            decoration: const InputDecoration(
-              hintText: 'Select a time',
-              prefixIcon: Icon(Icons.access_time, size: 20, color: Colors.grey),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
-                borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+  Widget _buildTimePicker() {
+    return GestureDetector(
+      onTap: () async {
+        final TimeOfDay? picked = await showTimePicker(
+          context: context,
+          initialTime: _selectedTimeOfDay ?? const TimeOfDay(hour: 9, minute: 0),
+          builder: (BuildContext context, Widget? child) {
+            return Theme(
+              data: ThemeData.light().copyWith(
+                colorScheme: const ColorScheme.light(
+                  primary: Color(0xFF5BBFF2),
+                  onPrimary: Colors.white,
+                  surface: Colors.white,
+                  onSurface: Colors.black,
+                ),
+                dialogBackgroundColor: Colors.white,
+                timePickerTheme: TimePickerThemeData(
+                  dialHandColor: const Color(0xFF5BBFF2),
+                  hourMinuteColor: Colors.white,
+                  hourMinuteTextColor: Colors.black87,
+                  dayPeriodColor: Colors.grey[200],
+                  dayPeriodTextColor: Colors.black87,
+                  dialBackgroundColor: Colors.grey[100],
+                  dialTextColor: Colors.black87,
+                  entryModeIconColor: const Color(0xFF5BBFF2),
+                ),
               ),
-              contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-              isDense: true,
+              child: child!,
+            );
+          },
+        );
+        if (picked != null && picked != _selectedTimeOfDay) {
+          setState(() {
+            _selectedTimeOfDay = picked;
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.access_time, size: 20, color: Colors.grey),
+            const SizedBox(width: 16),
+            Text(
+              _selectedTimeOfDay != null
+                  ? _selectedTimeOfDay!.format(context)
+                  : 'Select a time',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: _selectedTimeOfDay != null ? Colors.black87 : Colors.grey[600],
+              ),
             ),
-            isExpanded: true,
-            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 24),
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: Colors.black87,
-            ),
-            items: _timeSlots.map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _selectedTime = newValue;
-              });
-            },
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please select a time';
-              }
-              return null;
-            },
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSessionPurposeDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _sessionPurpose,
+      decoration: InputDecoration(
+        hintText: 'Select session purpose',
+        prefixIcon: const Icon(Icons.assignment_outlined, size: 20, color: Colors.grey),
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        isDense: true,
+      ),
+      isExpanded: true,
+      icon: const Icon(Icons.arrow_drop_down, color: Colors.grey, size: 24),
+      style: GoogleFonts.inter(
+        fontSize: 14,
+        color: Colors.black87,
+        height: 1.2,
+      ),
+      items: _purposeOptions.map<DropdownMenuItem<String>>((purpose) {
+        return DropdownMenuItem<String>(
+          value: purpose['value'],
+          child: Text(purpose['label']!), // Non-null assertion as we know these values exist
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _sessionPurpose = value;
+        });
+      },
     );
   }
 

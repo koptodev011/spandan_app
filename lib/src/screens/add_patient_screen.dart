@@ -101,13 +101,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           'appointment_note': _formData['notes'],
         };
 
-        // For web, use localhost, for Android use 10.0.2.2
-        final baseUrl = const bool.fromEnvironment('dart.library.js_util')
-            ? 'http://localhost:8000'
-            : 'http://10.0.2.2:8000';
-            
         final response = await http.post(
-          Uri.parse('$baseUrl/api/patients'),
+          Uri.parse('https://spandan.koptotech.solutions/api/patients'),
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',

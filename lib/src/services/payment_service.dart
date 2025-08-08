@@ -6,10 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_service.dart';
 
 class PaymentService {
-  // Use localhost for web and 10.0.2.2 for Android emulator
-  static String get baseUrl => kIsWeb 
-      ? 'http://localhost:8000/api' 
-      : 'http://10.0.2.2:8000/api';
+  // Live production URL
+  static String get baseUrl => 'https://spandan.koptotech.solutions/api';
 
   PaymentService();
 

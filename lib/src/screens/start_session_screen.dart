@@ -807,7 +807,7 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
         throw Exception('Please login again to continue');
       }
 
-      final url = Uri.parse('http://localhost:8000/api/sessions');
+      final url = Uri.parse('https://spandan.koptotech.solutions/api/sessions');
       print('API URL: $url');
       
       // Convert session type from kebab-case to snake_case
