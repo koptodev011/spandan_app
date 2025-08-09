@@ -865,17 +865,20 @@ class _StartSessionScreenState extends State<StartSessionScreen> {
               : responseData;
           
           // Navigate to SessionDetailsScreen with the created session data
+          final sessionId = (sessionData['id'] ?? sessionData['session_id']).toString();
+          
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => SessionDetailsScreen(
                 patient: {
                   ...widget.patient,
-                  'session_id': sessionData['id'] ?? sessionData['session_id'],
+                  'session_id': sessionId,
                   'session_type': _sessionType,
                   'start_time': DateTime.now().toIso8601String(),
                 },
                 onBack: widget.onBack,
+                sessionId: sessionId, // Pass the sessionId to the widget
               ),
             ),
           );
