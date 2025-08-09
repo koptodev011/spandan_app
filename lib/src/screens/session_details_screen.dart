@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:html' as html; // For web download functionality
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +15,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:share_plus/share_plus.dart'; // For sharing/saving files
 
 // Local imports
 import '../services/api_service.dart';
@@ -21,11 +24,13 @@ import '../services/auth_service.dart';
 class SessionDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> patient;
   final VoidCallback onBack;
+  final String sessionId; // Add sessionId parameter
 
   const SessionDetailsScreen({
     Key? key,
     required this.patient,
     required this.onBack,
+    required this.sessionId, // Make it required
   }) : super(key: key);
 
   @override
@@ -174,6 +179,30 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
     }
   }
   
+  // Helper method to get file bytes in a platform-agnostic way
+  Future<Uint8List?> _getFileBytes(String filePath) async {
+    try {
+      if (_isWeb()) {
+        // For web, we need to use a different approach
+        final response = await http.get(Uri.parse(filePath));
+        if (response.statusCode == 200) {
+          return response.bodyBytes;
+        }
+        return null;
+      } else {
+        // For mobile, use the File API
+        final file = File(filePath);
+        if (await file.exists()) {
+          return await file.readAsBytes();
+        }
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Error reading file bytes: $e');
+      return null;
+    }
+  }
+
   // Check if the platform is web
   bool _isWeb() {
     return identical(0, 0.0); // A simple way to detect web platform
@@ -317,12 +346,210 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
     });
   }
   
+  // Helper method to upload the recording file
+  Future<void> _uploadRecording(String filePath) async {
+    try {
+      Uint8List bytes;
+      String fileName;
+      String extension;
+      
+      debugPrint('Starting file upload for path: $filePath');
+      
+      if (_isWeb()) {
+        // For web, use XMLHttpRequest with FormData
+        debugPrint('Preparing web upload...');
+        debugPrint('Audio path: $_audioPath');
+        debugPrint('File path: $filePath');
+        
+        if (_audioPath == null) {
+          debugPrint('Error: _audioPath is null');
+          _showSnackBar('No recording found to upload');
+          return;
+        }
+        
+        try {
+          // For web, use the recorded file directly from the recorder
+          final recorder = _audioRecorder;
+          if (recorder == null) {
+            debugPrint('Recorder is not initialized');
+            _showSnackBar('Recorder not ready');
+            return;
+          }
+          
+          // Stop the recorder first
+          await recorder.stop();
+          
+          // Get the recorded file path
+          final recordedPath = _audioPath;
+          if (recordedPath == null) {
+            debugPrint('No recorded file path available');
+            _showSnackBar('No recording found to upload');
+            return;
+          }
+          
+          // For web, we'll use the path directly in the form data
+          // The actual file will be sent as part of the form
+          fileName = 'recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+          extension = '.m4a';
+          
+          // We'll handle the file upload in the request
+          bytes = Uint8List(0); // Placeholder, actual file will be sent via form
+        } catch (e) {
+          debugPrint('Error preparing web recording: $e');
+          _showSnackBar('Error preparing recording');
+          return;
+        }
+      } else {
+        // For mobile/desktop
+        final file = File(filePath);
+        if (!await file.exists()) {
+          debugPrint('Recording file not found: $filePath');
+          _showSnackBar('Recording file not found');
+          return;
+        }
+        bytes = await file.readAsBytes();
+        fileName = path.basename(filePath);
+        extension = path.extension(filePath).toLowerCase();
+      }
+      
+      // Get the auth token
+      final token = await AuthService.getToken();
+      if (token == null) {
+        debugPrint('No auth token found');
+        _showSnackBar('Please login again');
+        return;
+      }
+      
+      if (_isWeb()) {
+        // For web, use XMLHttpRequest with FormData
+        debugPrint('Preparing web upload...');
+        
+        try {
+          // Get the recorded file as bytes
+          debugPrint('Fetching audio file from: ${_audioPath!}');
+          final response = await http.get(Uri.parse(_audioPath!));
+          debugPrint('Response status code: ${response.statusCode}');
+          
+          if (response.statusCode != 200) {
+            debugPrint('Failed to read recording file. Status: ${response.statusCode}');
+            debugPrint('Response body: ${response.body}');
+            throw Exception('Failed to read recording file. Status: ${response.statusCode}');
+          }
+          
+          // Create a Blob from the response bytes
+          debugPrint('Creating Blob from response bytes. Length: ${response.bodyBytes.length}');
+          final blob = html.Blob([response.bodyBytes], 'audio/m4a');
+          
+          // Create FormData and append the blob directly
+          debugPrint('Creating FormData and appending blob. File name: $fileName');
+          final formData = html.FormData();
+          try {
+            formData.appendBlob('voice_notes_path', blob, fileName);
+            debugPrint('Successfully appended blob to FormData');
+          } catch (e) {
+            debugPrint('Error appending blob to FormData: $e');
+            rethrow;
+          }
+          
+          // Create and send the request
+          final xhr = html.HttpRequest();
+          final url = 'https://spandan.koptotech.solutions/api/sessions/${widget.sessionId}/complete';
+          
+          debugPrint('Preparing to send request to: $url');
+          xhr.open('POST', url);
+          xhr.setRequestHeader('Authorization', 'Bearer $token');
+          xhr.setRequestHeader('Accept', 'application/json');
+          
+          // Handle response
+          final completer = Completer<void>();
+          xhr.onLoad.listen((e) {
+            try {
+              final status = xhr.status ?? 0; // Default to 0 if status is null
+              debugPrint('Upload response status: $status');
+              debugPrint('Upload response headers: ${xhr.getAllResponseHeaders()}');
+              debugPrint('Upload response text: ${xhr.responseText}');
+              
+              if (status >= 200 && status < 300) {
+                debugPrint('Recording uploaded successfully');
+                _showSnackBar('Recording uploaded successfully');
+                completer.complete();
+              } else {
+                final errorMsg = 'Failed to upload recording. Status: $status, Response: ${xhr.responseText}';
+                debugPrint(errorMsg);
+                _showSnackBar('Failed to upload recording (${xhr.statusText})');
+                completer.completeError(errorMsg);
+              }
+            } catch (e) {
+              debugPrint('Error in onLoad handler: $e');
+              _showSnackBar('Error processing upload response');
+              completer.completeError(e);
+            }
+          });
+          
+          xhr.onError.listen((e) {
+            debugPrint('Upload error: $e');
+            _showSnackBar('Error uploading recording');
+            completer.completeError('Upload error: $e');
+          });
+          
+          // Send the request
+          xhr.send(formData);
+          await completer.future;
+          
+        } catch (e) {
+          debugPrint('Web upload error: $e');
+          _showSnackBar('Error uploading recording: $e');
+        }
+      } else {
+        // For mobile/desktop
+        try {
+          final request = http.MultipartRequest(
+            'POST',
+            Uri.parse('https://spandan.koptotech.solutions/api/sessions/${widget.sessionId}/complete'),
+          );
+          
+          request.files.add(http.MultipartFile.fromBytes(
+            'voice_notes_path',
+            bytes,
+            filename: fileName,
+            contentType: _getAudioMimeType(extension),
+          ));
+          
+          request.headers['Authorization'] = 'Bearer $token';
+          request.headers['Accept'] = 'application/json';
+          
+          final response = await request.send();
+          final responseBody = await response.stream.bytesToString();
+          
+          debugPrint('Upload response status: ${response.statusCode}');
+          debugPrint('Upload response body: $responseBody');
+          
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            debugPrint('Recording uploaded successfully');
+            _showSnackBar('Recording uploaded successfully');
+          } else {
+            throw Exception('Status: ${response.statusCode}, $responseBody');
+          }
+        } catch (e) {
+          debugPrint('Upload error: $e');
+          _showSnackBar('Error uploading recording: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error uploading recording: $e');
+      _showSnackBar('Error uploading recording: $e');
+    }
+  }
+
   Future<void> _stopRecording() async {
     try {
       // Stop the recording and get the file path
       final path = await _audioRecorder.stop();
       
       if (path != null) {
+        // Upload the recording file
+        await _uploadRecording(path);
+        
         if (!_isWeb()) {
           // For mobile, get file size using File API
           try {
@@ -410,6 +637,64 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       });
     } catch (e) {
       debugPrint('Error stopping playback: $e');
+    }
+  }
+  
+  Future<void> _downloadRecording() async {
+    if (_audioPath == null) return;
+    
+    try {
+      // Ensure the file has the correct extension (.m4a for AAC audio)
+      String fileName = path.basename(_audioPath!);
+      if (!fileName.toLowerCase().endsWith('.m4a')) {
+        // If the file doesn't have .m4a extension, add it
+        fileName = fileName.replaceAll(RegExp(r'\.\w+$'), '') + '.m4a';
+      }
+      
+      if (_isWeb()) {
+        // For web, use the HTML5 download approach
+        final bytes = await _getFileBytes(_audioPath!);
+        if (bytes == null) {
+          _showSnackBar('Failed to read recording data');
+          return;
+        }
+        
+        // Create a Blob with the correct MIME type for AAC audio
+        final blob = html.Blob([bytes], 'audio/mp4'); // M4A files use the MP4 container
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute('download', fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
+        _showSnackBar('Download started');
+      } else {
+        // For mobile, use the share_plus package to handle file saving
+        final bytes = await _getFileBytes(_audioPath!);
+        if (bytes == null) {
+          _showSnackBar('Failed to read recording data');
+          return;
+        }
+        
+        // Save to temporary file with correct extension
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/$fileName');
+        await tempFile.writeAsBytes(bytes);
+        
+        // Get the file size for the message
+        final fileSize = await tempFile.length();
+        final fileSizeMB = (fileSize / (1024 * 1024)).toStringAsFixed(2);
+        
+        // Use share_plus to let the user save the file
+        await Share.shareXFiles(
+          [XFile(tempFile.path, mimeType: 'audio/mp4')], // M4A files use the MP4 container
+          text: 'Voice Note: $fileName (${fileSizeMB}MB)',
+          subject: 'Voice Recording',
+          sharePositionOrigin: Rect.largest,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error downloading recording: $e');
+      _showSnackBar('Failed to download recording: ${e.toString()}');
     }
   }
   
@@ -910,46 +1195,77 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
       request.headers['Authorization'] = 'Bearer $token';
       request.headers['Accept'] = 'application/json';
 
-      // Add audio file if exists
+      // Handle audio file upload for web and mobile
       if (_audioPath != null && _audioPath!.isNotEmpty) {
-        try {
-          final audioFile = File(_audioPath!);
-          if (await audioFile.exists()) {
-            print('Adding audio file: ${audioFile.path}');
+        if (_isWeb()) {
+          try {
+            print('Preparing to upload audio file from web...');
+            print('Audio path: $_audioPath');
             
-            // Get the file extension and determine MIME type
-            final fileExt = path.extension(_audioPath!).toLowerCase();
-            final mimeType = _getAudioMimeType(fileExt);
+            // Fetch the audio file as bytes from the blob URL
+            final response = await http.get(Uri.parse(_audioPath!));
+            print('Fetched audio file bytes, status: ${response.statusCode}');
             
-            // Create a unique filename with timestamp and patient ID
-            final timestamp = DateTime.now().millisecondsSinceEpoch;
-            final filename = 'voice_note_${widget.patient['id'] ?? 'unknown'}_$timestamp$fileExt';
-            
-            print('Audio file details:');
-            print('  - Path: ${audioFile.path}');
-            print('  - Size: ${(await audioFile.length()) / 1024} KB');
-            print('  - MIME Type: ${mimeType.mimeType}');
-            print('  - Uploading as: $filename');
-            
-            // Add the audio file to the request
-            request.files.add(await http.MultipartFile.fromPath(
-              'voice_notes',  // Changed from 'voice_notes_path' to 'voice_notes'
-              audioFile.path,
-              filename: filename,
-              contentType: mimeType,
-            ));
-            
-            print('Successfully added audio file to request');
-          } else {
-            final errorMsg = 'Audio file not found at path: ${audioFile.path}';
-            print(errorMsg);
-            _showSnackBar(errorMsg);
+            if (response.statusCode == 200) {
+              // Get the MIME type from the response or default to audio/m4a
+              final mimeType = response.headers['content-type'] ?? 'audio/m4a';
+              print('Audio MIME type: $mimeType');
+              
+              // Generate a unique filename
+              final filename = 'voice_note_${DateTime.now().millisecondsSinceEpoch}.${mimeType.split('/').last}';
+              print('Generated filename: $filename');
+              
+              // Add audio file to the request
+              request.files.add(http.MultipartFile.fromBytes(
+                'voice_notes_path',
+                response.bodyBytes,
+                filename: filename,
+                contentType: MediaType.parse(mimeType),
+              ));
+              
+              print('Successfully added audio file to request');
+            } else {
+              print('Failed to fetch audio file: ${response.statusCode}');
+            }
+          } catch (e) {
+            print('Error during web audio upload: $e');
+            // Continue with the request even if audio upload fails
           }
-        } catch (e, stackTrace) {
-          final errorMsg = 'Error adding audio file: $e';
-          print(errorMsg);
-          print('Stack trace: $stackTrace');
-          _showSnackBar('Error: Could not attach audio file');
+        } else {
+          // For mobile/desktop, use the existing file path
+          try {
+            print('Preparing to upload audio file from mobile/desktop...');
+            final audioFile = File(_audioPath!);
+            final exists = await audioFile.exists();
+            print('Audio file exists: $exists');
+            
+            if (exists) {
+              final fileSize = await audioFile.length();
+              print('Audio file size: $fileSize bytes');
+              
+              final fileExt = path.extension(_audioPath!).toLowerCase();
+              final mimeType = _getContentTypeFromExtension(fileExt);
+              print('Audio file MIME type: $mimeType');
+              
+              final filename = 'voice_note_${DateTime.now().millisecondsSinceEpoch}$fileExt';
+              print('Generated filename: $filename');
+              
+              request.files.add(await http.MultipartFile.fromPath(
+                'voice_notes_path',
+                _audioPath!,
+                filename: filename,
+              ));
+              
+              print('Successfully added audio file to request');
+            } else {
+              print('Audio file not found at path: $_audioPath');
+            }
+          } catch (e, stackTrace) {
+            final errorMsg = 'Error adding audio file: $e';
+            print(errorMsg);
+            print('Stack trace: $stackTrace');
+            _showSnackBar('Error: Could not attach audio file');
+          }
         }
       } else {
         print('No audio file to upload');
@@ -1664,6 +1980,16 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> with Widget
                   ),
                   onPressed: _stopPlaying,
                 ),
+              
+              // Download button
+              IconButton(
+                icon: const Icon(
+                  Icons.download_outlined,
+                  size: 32,
+                  color: Color(0xFF4F46E5),
+                ),
+                onPressed: _downloadRecording,
+              ),
               
               // Delete button
               IconButton(
